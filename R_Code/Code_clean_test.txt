@@ -1,0 +1,13 @@
+
+		
+model{
+	for( ic in 1 : N) 
+	{
+		for( j in 1 : Nsubj[ic]){
+		  mu[CumSum[ic]+ j] <-  beta1.sub[ic]*x1[CumSum[ic]+ j]  + beta2.sub
+		  y[CumSum[ic]+ j]  ~ dnorm(mu[CumSum[ic]+ j],2)
+		  }
+	 beta1.sub[ic] ~ dnorm(0,1.0E-2)
+	}
+	beta2.sub ~ dnorm(0,3)
+}

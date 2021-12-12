@@ -1,0 +1,21 @@
+model*x1[CumSum[ic]+ j]
+{
+	for( ic in 1 : N) 
+	  {
+		for( j in 1 : Nsubj[ic])
+		 {
+		 y[CumSum[ic]+ j]  ~ dnorm(mu[CumSum[ic]+ j],0.0001)
+		 mu[CumSum[ic]+ j] <- beta0.sub + beta1.sub*x1[CumSum[ic]+ j] + beta2.sub*x2[CumSum[ic]+ j] + b0.grp[ic]*z1[CumSum[ic]+ j]
+		 }
+	  b0.grp[ic] ~ dnorm(0,k[ic])
+	  k[ic] <- 1/sigma_b0.grp[ic]
+	  sigma_b0.grp[ic]~ dunif(0,1000)
+	  }		
+  beta0.sub	~ dnorm(0,1.0E-2)
+  beta1.sub	~ dnorm(0,1.0E-2)
+  beta2.sub	~ dnorm(0,1.0E-2)
+  sigma.sub	~ dgamma(0.01,0.01)
+}	
+					
+				
+	
