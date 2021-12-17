@@ -1,0 +1,8 @@
+model
+{
+    for (i in 1:N) {
+        x[i] ~ dweib(k, invlambda)
+    }
+    k ~ dunif(0.00000E+00, 100)
+    invlambda ~ dunif(0.00000E+00, 100)
+}

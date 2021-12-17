@@ -1,0 +1,12 @@
+model
+{
+    for (i in 1:N) {
+        y[i] ~ dweib(k, invlambda[i])
+        log(invlambda[i]) <- beta0 + beta1 * x1[i] + beta2 * 
+            x2[i]
+    }
+    k ~ dunif(0.1, 100)
+    beta0 ~ dunif(-5, 5)
+    beta1 ~ dunif(-5, 5)
+    beta2 ~ dunif(-5, 5)
+}

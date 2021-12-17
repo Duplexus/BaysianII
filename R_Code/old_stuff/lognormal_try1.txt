@@ -1,0 +1,27 @@
+model
+{
+	for( ic in 1 : N) 
+	  {
+		for( j in 1 : Nsubj[ic])
+		 {
+		 k <- CumSum[ic]+ j
+		 mu[k] <- beta0.sub + beta1.sub*x1[k] + 
+							beta2.sub*x2[k] + b0.grp[ic]*z1[k]
+		y[k]  ~ dnorm(mu[k],0.0001)					
+		 }
+		 }
+    for( ic in 1 : N) 
+	  {	 
+	  b0.grp[ic] ~ dnorm(0,k[ic])
+	  #just because variance is wrong pictured in this model
+	  k[ic] <- 1/sigma_b0.grp[ic]
+	  sigma_b0.grp[ic]~ dunif(0,1000)
+	  }		
+  beta0.sub	~ dnorm(0,1.0E-2)
+  beta1.sub	~ dnorm(0,1.0E-2)
+  beta2.sub	~ dnorm(0,1.0E-2)
+  sigma.sub	~ dgamma(0.01,0.01)
+}	
+					
+				
+	
