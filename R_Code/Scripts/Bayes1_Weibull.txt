@@ -2,8 +2,9 @@ model
 {
     for (i in 1:N) {
         y[i] ~ dweib(k, invlambda[i])
-        log(invlambda[i]) <- beta0 + beta1 * x1[i] + beta2 * 
-            x2[i]
+        invlambda[i] <- 1/t[i]
+        t[i] <- exp(h[i])
+        h[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i]
     }
     k ~ dunif(0.1, 100)
     beta0 ~ dunif(-5, 5)

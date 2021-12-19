@@ -4,7 +4,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 library(coda)
 library(R2OpenBUGS)
 
-Grub <- read.csv("..\\data\\Grubs_Easy.csv")
+Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
 
 model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
                     x2 = Grub$group, id = Grub$id, Nsubj = length(unique(Grub$id)))
@@ -32,10 +32,14 @@ parameters = c("k", "beta2", "beta0", "beta1", "b0")
 model.out <- bugs(model.data, model.inits, 
                   model.file = "Bayes1_Weibull_Random.txt",
                   parameters=parameters,
-                  n.chains = 3, n.iter = 3000,  n.burnin = 1000, debug = T,
+                  n.chains = 2, n.iter = 5000,n.thin = 100,  n.burnin = 2000, debug = T,
                   codaPkg=T,
                   working.directory = ".\\Scripts")
 
 Weibull_bayes <- read.bugs(model.out)
 
-summary(Weibull_bayes)
+summary_weibull <- summary(Weibull_bayes)
+b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
+mean(b_params[1:10,1])
+attributes(summary_weibull$statistics)
+
