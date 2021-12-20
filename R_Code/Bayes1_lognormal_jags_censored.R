@@ -1,19 +1,32 @@
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 library("runjags")
-Grub <- read.csv("..\\data\\Grubs_Easy.csv")
+library(dplyr)
+Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
+Grub <- Grub %>% arrange(upperlim)
+length_Upper <- length(sort(Grub$upperlim))
+#10
+lenngth_NA_Upper <- nrow(Grub) - length_NA_Upper
 NAs <- is.na(Grub$upperlim)
-Grub$upperlim[NAs]<- 14
-Grub$value <- 1
-Grub$value  <- as.numeric(NA)
-model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
+Grub$upperlim[NAs] <- 14
+#Grub$upperlim[NAs]<- 100000
+#da alle Intervallcensored sind gerade muss ich immer eine 1 schicken
+#https://stats.stackexchange.com/questions/13847/how-does-dinterval-for-interval-censored-data-work-in-jags
+Grub$state <- c(rep(1,length_Upper),rep(1,lenngth_NA_Upper ))
+Grub$value <- as.numeric(NA)
+model.data <- list(y = Grub$value, z = Grub$state, N1 = length_Upper,N2 = lenngth_NA_Upper, x1 = Grub$grubsize,
                     x2 = Grub$group, lims = cbind(Grub$lowerlim,Grub$upperlim))
 
 
-
-model.inits <- list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 )
+model.inits <- list(list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 ),list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 ))
 parameters <-c("beta0", "beta1", "beta2", "sigma")
 model.function <- "model{
-  for (i in 1:N){
+  for (i in 1:N1){
+    z[i] ~ dinterval(y[i], lims[i, ])
+    y[i] ~ dlnorm(mu[i], sigma)
+    mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
+  }
+  for (i in (N1+1):(N1+N2)){
+    z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dlnorm(mu[i], sigma)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
   }
@@ -26,7 +39,8 @@ model.function <- "model{
 runjags.options(method = "rjparallel")
 ModelLogN <- run.jags(model = model.function,
                       monitor = parameters, data = model.data,
-                      inits = model.inits, burnin = 2000, sample = 5000, thin = 1, n.chains = 2)
+                      inits = model.inits, burnin = 500, sample = 1000, thin = 1, n.chains = 2
+                      , progress.bar = "text")
 
 
 print(ModelLogN)
