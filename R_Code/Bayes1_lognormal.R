@@ -31,7 +31,7 @@ parameters = c("sigma", "beta2", "beta0", "beta1")
 model.out <- bugs(model.data, model.inits, 
                   model.file = "Bayes1_lognormal.txt",
                   parameters=parameters,
-                  n.chains = 1, n.iter = 5000,  n.burnin = 1000, debug = F,
+                  n.chains = 2, n.iter = 5000,  n.burnin = 0, debug = T,
                   codaPkg=T,
                   working.directory = ".\\Scripts")
 

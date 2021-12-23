@@ -11,7 +11,7 @@ Grub$VALUE <- (Grub$UPPERLIM + Grub$LOWERLIM) /2
 
 y <- unlist(as.vector(Grub$VALUE))
 y <-Grub$VALUE
-y[1:1] <- NA
+#y[1:1] <- NA
 #y[81:140] <- NA
 
 model.data <- list(lower = Grub$LOWERLIM, upper = Grub$UPPERLIM, N = length(Grub$UPPER), x1 = Grub$GRUBSIZE,

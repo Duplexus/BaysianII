@@ -2,12 +2,13 @@ model
 {
     for (i in 1:N) {
         y[i] ~ dweib(k, invlambda[i])
-        invlambda[i] <- 1/t[i]
-        t[i] <- exp(h[i])
+        invlambda[i] <- pow(t[i], k)
+        t[i] <- exp(-h[i])
         h[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i]
     }
+    scale <- 1/k
     k ~ dunif(0.1, 100)
-    beta0 ~ dunif(-5, 5)
-    beta1 ~ dunif(-5, 5)
-    beta2 ~ dunif(-5, 5)
+    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
 }
