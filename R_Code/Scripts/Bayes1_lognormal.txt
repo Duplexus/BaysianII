@@ -2,10 +2,11 @@ model
 {
     for (i in 1:N) {
         y[i] ~ dlnorm(mu[i], sigma)
+        predict[i] ~ dlnorm(mu[i], sigma)
         mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i]
     }
-    sigma ~ dunif(0.1, 100)
-    beta0 ~ dunif(-5, 5)
-    beta1 ~ dunif(-5, 5)
-    beta2 ~ dunif(-5, 5)
+    sigma ~ dunif(0.00000E+00, 100)
+    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
 }

@@ -5,11 +5,31 @@ model
         log(invlambda[i]) <- beta0 + beta1 * x1[i] + beta2 * 
             x2[i] + b0[id[i]]
     }
-    k ~ dunif(0.1, 100)
-    beta0 ~ dunif(-5, 5)
-    beta1 ~ dunif(-5, 5)
-    beta2 ~ dunif(-5, 5)
+    k ~ dunif(0.00000E+00, 100)
+    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
     for (i in 1:Nsubj) {
         b0[i] ~ dnorm(0.00000E+00, 0.1)
+        b0_rep[i] ~ dnorm(0.00000E+00, 0.1)
+        rank_b0[i] <- ranked(b0[1:Nsubj], i)
+        rank_b0_rep[i] <- ranked(b0_rep[1:Nsubj], i)
     }
+    tmin <- ranked(b0[], 1)
+    tmax <- ranked(b0[], Nsubj)
+    tmin.rep <- ranked(b0_rep[], 1)
+    tmax.rep <- ranked(b0_rep[], Nsubj)
+    tmin.test <- step(tmin.rep - tmin)
+    tmax.test <- step(tmax.rep - tmax)
+    for (i in 1:Nsubj) {
+        F.gauss[i] <- phi(rank_b0[i])
+        F.gauss.rep[i] <- phi(rank_b0_rep[i])
+        F.diff[i] <- max(F.gauss[i] - (i - 1)/Nsubj, i/Nsubj - 
+            F.gauss[i])
+        F.diff.rep[i] <- max(F.gauss.rep[i] - (i - 1)/Nsubj, 
+            i/Nsubj - F.gauss.rep[i])
+    }
+    ks <- ranked(F.diff[], Nsubj)
+    ks.rep <- ranked(F.diff.rep[], Nsubj)
+    ks.test <- step(ks.rep - ks)
 }

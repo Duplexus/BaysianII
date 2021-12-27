@@ -6,11 +6,13 @@ model
         predict[i] ~ dlnorm(mu[i], sigma)
     }
     sigma ~ dunif(0.1, 100)
-    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
-    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
     for (i in 1:Nsubj) {
         b0[i] ~ dnorm(0.00000E+00, 1.00000E-04)
-        b0.rep[i] ~ dnorm(0.00000E+00, 1.00000E-04)
+    }
+    sds <- pow(sd(b0[]), -1)
+    for (i in 1:Nsubj) {
+        mu_gr[i] <- mean(mu[i:(i + 6)])
+        b0.rep[i] ~ dnorm(mu_gr[i], sds)
     }
 }

@@ -22,7 +22,7 @@ model.function <- function(){
   }
   #priors
   scale <- 1/k
-  k ~ dunif(0.1,100)
+  k ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)

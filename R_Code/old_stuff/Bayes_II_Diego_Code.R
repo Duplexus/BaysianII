@@ -76,6 +76,8 @@ write.model(survival1, "survival1.txt")
 # these are the parameters to save
 parameters = c("beta0", "beta_G","beta", "sigma")
 
+
+
 # SET UP AND RUN MODEL
 # specify model, data, number of parallel chains
 model.out <- bugs(model.data, model.inits, 
