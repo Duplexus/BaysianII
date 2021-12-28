@@ -51,6 +51,6 @@ subset_pred <- grepl("Devi", dimnames(mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(mcmc_rep,subset_pred)
 mean(mcmc_subset)
 subset_pred <- grepl("D2evi", dimnames(mcmc_rep[[1]])[[2]])
-
+#works
 mcmc_subset2 <- get_values(mcmc_rep,subset_pred)
 -2 *mean(mcmc_subset2)

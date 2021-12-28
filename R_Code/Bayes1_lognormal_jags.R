@@ -69,7 +69,7 @@ plot(mcmc)
 ####Model Disagnostics and PPC
 model.function <- "model{
   for (i in 1:N){
-    y[i] ~ dnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], sigma)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
     ppo[i] <- dnorm(k[i],mu[i],sigma)
     k[i] <- log(y[i])
@@ -82,7 +82,7 @@ model.function <- "model{
   #ppc look on residuals
   for (i in 1:N){
     res[i] <- k[i] - mu[i]
-    D[i] <- dnorm(y[i],mu[i], sigma)
+    D[i] <- log(dlnorm(y[i],mu[i], sigma))
   }
   Deviance <- sum(D[])
 }"
