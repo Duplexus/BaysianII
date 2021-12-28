@@ -1,12 +1,19 @@
 model
 {
     for (i in 1:N) {
-        y[i] ~ dlnorm(mu[i], sigma)
-        predict[i] ~ dlnorm(mu[i], sigma)
+        y[i] ~ dnorm(mu[i], sigma)
+        predict[i] ~ dnorm(mu[i], sigma)
         mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i]
+        D[i] <- -log(sigma) + log(2 * 3.14159265358979) + pow(log(y[i]) - 
+            mu[i], 2) * sigma
     }
-    sigma ~ dunif(0.00000E+00, 100)
+    for (i in 1:N) {
+        ppo[i] <- dnorm(k[i], mu[i], sigma)
+        k[i] <- log(y[i])
+    }
+    sigma ~ dgamma(0.001, 0.001)
     beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
+    Deviance <- sum(D[])
 }

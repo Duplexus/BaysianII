@@ -1,6 +1,8 @@
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+source("helpfunctions.r")
 library("runjags")
-library(dplyr)
+library("coda")
+library("dplyr")
 Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
 Grub <- Grub %>% arrange(upperlim)
 length_Upper <- length(sort(Grub$upperlim))
@@ -33,7 +35,7 @@ model.function <- "model{
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
   }
   #priors
-  sigma ~ dunif(0,100)
+  sigma ~ dgamma(0.001, 0.001)
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)
@@ -45,7 +47,24 @@ ModelLogN <- run.jags(model = model.function,
                       , progress.bar = "text")
 
 
+#Model Diagnostics and so on 
+#Starts with ModelLogN and plots it and calculates BIC and the 
+#Statistics of Rubin and so on
+#some Results
+plot(ModelLogN)
 print(ModelLogN)
+#The DIC Value for model comparison
+dic_val <- extract.runjags(ModelLogN, "dic")
+dic_val
+extract.runjags(ModelLogN, "stochastic")
 
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc <- as.mcmc.list(ModelLogN)
+gelman.diag(mcmc, confidence = 0.95)
+gelman.plot(mcmc, confidence = 0.95)
+geweke.diag(mcmc)
+geweke.plot(mcmc)
+plot(mcmc)
 
 
