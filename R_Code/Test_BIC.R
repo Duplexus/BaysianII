@@ -46,11 +46,27 @@ print(Model_test)
 dic_val <- extract.runjags(Model_test, "dic")
 dic_val
 
+
+
 mcmc_rep <- as.mcmc.list(Model_test)
 subset_pred <- grepl("Devi", dimnames(mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(mcmc_rep,subset_pred)
 mean(mcmc_subset)
-subset_pred <- grepl("D2evi", dimnames(mcmc_rep[[1]])[[2]])
 #works
+subset_pred <- grepl("D2evi", dimnames(mcmc_rep[[1]])[[2]])
 mcmc_subset2 <- get_values(mcmc_rep,subset_pred)
 -2 *mean(mcmc_subset2)
+
+
+#so wird tatsächlich der Penalty ausgerechnet
+#daher mean aller Beobachtungen einsetzung und das von der Deviance abziehen
+dic_val
+-2 *mean(mcmc_subset2)  -  
+  sum(-2*log(dnorm(y,0.18704+1.007*x,sqrt(26.11))))
+#das ist sehr weit davon weg, daher wahrscheinlich falsch berechnet
+#ist ja auch totaler quatsch, musste ja innerhalb jeder Periode berechnet
+#werden um sinnvoll zu sein.
+0.5 * var(mcmc_subset2)
+
+
+

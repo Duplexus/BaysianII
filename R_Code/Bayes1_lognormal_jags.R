@@ -65,14 +65,12 @@ geweke.plot(mcmc)
 plot(mcmc)
 
 
-#PPC for normality of Errors
 ####Model Disagnostics and PPC
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dlnorm(mu[i], sigma)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
-    ppo[i] <- dnorm(k[i],mu[i],sigma)
-    k[i] <- log(y[i])
+    ppo[i] <- dlnorm(y[i],mu[i],sigma)
   }
   #priors
   sigma ~ dgamma(0.001, 0.001)
@@ -81,6 +79,7 @@ model.function <- "model{
   beta2 ~ dnorm(0,0.001)
   #ppc look on residuals
   for (i in 1:N){
+    k[i] <- log(y[i])
     res[i] <- k[i] - mu[i]
     D[i] <- log(dlnorm(y[i],mu[i], sigma))
   }
@@ -92,6 +91,7 @@ ModelLogN_rep <- run.jags(model = model.function,
                       inits = model.inits, burnin = 2000,
                       sample = 5000, thin = 1, n.chains = 2)
 mcmc_rep <- as.mcmc.list(ModelLogN_rep)
+
 
 
 #1.) extract the ppo values 
@@ -107,43 +107,16 @@ mcmc_subset <- get_values(mcmc_rep,subset_pred)
 hist(apply(mcmc_subset,2,mean), breaks = 20)
 
 #3.) Get the DIC running
-subset_pred <- grepl("D\\[", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(mcmc_rep,subset_pred)
-erstes <- cbind(apply(mcmc_subset,2,mean))
-
-
 subset_pred <- grepl("Deviance", dimnames(mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(mcmc_rep,subset_pred)
--2*mean(mcmc_subset)
+mcmc_subset_dic<- -2* mcmc_subset
+md <- mean(mcmc_subset_dic)
 
+a <- summary(ModelLogN_rep)
+a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
+pd <- md - (-2 *sum(log(dlnorm(Grub$value,a["beta0"]+a["beta1"]*Grub$grubsize 
+                   + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+c(pd,md,pd+md)
 dic_val <- extract.runjags(ModelLogN_rep, "dic")
 dic_val
-
-
-
-
-
-
-
-
-
-
-
-subset_pred <- grepl("mu\\[", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset_mean <- get_values(mcmc_rep,subset_pred)
-subset_pred <- grepl("sigm", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset_sd <- as.vector(get_values(mcmc_rep,subset_pred))
-
-
-subset_pred <- grepl("ppo\\[", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(mcmc_rep,subset_pred)
-
-k <- -2 *apply(log(mcmc_subset),2,mean)
-0.5 * var(k) +mean(k)
-
-sum(log((as.matrix(mcmc_subset))))/nrow(mcmc_subset)
-
-cbind(dic_val[["deviance"]],-2 *apply(log(mcmc_subset),2,mean),erstes)
-
-dic_val <- extract.runjags(ModelLogN_rep, "dic")
-dic_val
+summary(dic_val)
