@@ -1,4 +1,7 @@
 #Help FUnctios
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
+
 
 # #parametric
 # library(survival)

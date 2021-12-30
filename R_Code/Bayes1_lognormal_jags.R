@@ -34,43 +34,39 @@ model.function <- "model{
 runjags.options(method = "rjparallel")
 #Set Up Model
 #Generate MCMC SAMpls
-ModelLogN <- run.jags(model = model.function,
+lognorm <- run.jags(model = model.function,
                      monitor = parameters, data = model.data,
                      inits = model.inits, burnin = 2000,
                      sample = 5000, thin = 1, n.chains = 2)
 
-#results <- extend.jags(ModelLogN, sample=5000)
+    # ####If not used in Master decomment once####
+    # #Model Diagnostics and so on 
+    # #Starts with ModelLogN and plots it and calculates BIC and the 
+    # #Statistics of Rubin and so on
+    # #some Results
+    # plot(lognorm)
+    # print(lognorm)
+    # #The DIC Value for model comparison
+    # dic_val <- extract.runjags(lognorm, "dic")
+    # dic_val
+    # extract.runjags(ModelLogN, "stochastic")
+    # 
+    # #coda integration so also coda stuff is available
+    # #Model Diagnostik plots
+    # mcmc_lognorm <- as.mcmc.list(lognorm)
+    # 
+    # gelman.diag(mcmc_lognorm, confidence = 0.95)
+    # gelman.plot(mcmc_lognorm, confidence = 0.95)
+    # geweke.diag(mcmc_lognorm)
+    # geweke.plot(mcmc_lognorm)
+    # plot(mcmc_lognorm)
 
 
-
-#Model Diagnostics and so on 
-#Starts with ModelLogN and plots it and calculates BIC and the 
-#Statistics of Rubin and so on
-#some Results
-plot(ModelLogN)
-print(ModelLogN)
-#The DIC Value for model comparison
-dic_val <- extract.runjags(ModelLogN, "dic")
-dic_val
-extract.runjags(ModelLogN, "stochastic")
-
-#coda integration so also coda stuff is available
-#Model Diagnostik plots
-mcmc <- as.mcmc.list(ModelLogN)
-
-gelman.diag(mcmc, confidence = 0.95)
-gelman.plot(mcmc, confidence = 0.95)
-geweke.diag(mcmc)
-geweke.plot(mcmc)
-plot(mcmc)
-
-
-####Model Disagnostics and PPC
+####Model Disagnostics and PPC####
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dlnorm(mu[i], sigma)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
-    ppo[i] <- dlnorm(y[i],mu[i],sigma)
   }
   #priors
   sigma ~ dgamma(0.001, 0.001)
@@ -79,44 +75,50 @@ model.function <- "model{
   beta2 ~ dnorm(0,0.001)
   #ppc look on residuals
   for (i in 1:N){
+    ppo[i] <- dlnorm(y[i],mu[i],sigma)
     k[i] <- log(y[i])
     res[i] <- k[i] - mu[i]
-    D[i] <- log(dlnorm(y[i],mu[i], sigma))
+    #for DIC
+    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
   }
+  K <- sort(D)
+  K <- K[2]
   Deviance <- sum(D[])
 }"
 parameters <-c("beta0", "beta1", "beta2", "sigma","ppo","res","mu","Deviance")
-ModelLogN_rep <- run.jags(model = model.function,
+lognormal_rep <- run.jags(model = model.function,
                       monitor = parameters, data = model.data,
                       inits = model.inits, burnin = 2000,
                       sample = 5000, thin = 1, n.chains = 2)
-mcmc_rep <- as.mcmc.list(ModelLogN_rep)
+lognormal_mcmc_rep <- as.mcmc.list(lognormal_rep)
 
 
 
-#1.) extract the ppo values 
-subset_pred <- grepl("ppo\\[", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
+# #1.) extract the ppo values 
+# subset_pred <- grepl("ppo\\[", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+# mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+# #ppo which are now far of?
+# plot(1/apply(as.matrix(mcmc_subset),2,mean))
+# 
+# #2.) extract the res values 
+# subset_pred <- grepl("res\\[", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+# mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+# #how look the average residuals in the log world?
+# hist(apply(mcmc_subset,2,mean), breaks = 20)
+# 
+# #3.) Get the DIC running
+# subset_pred <- grepl("Deviance", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+# mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+# mcmc_subset_dic<- mcmc_subset
+# md <- mean(mcmc_subset_dic)
+# 
+# a <- summary(lognormal_rep)
+# a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
+# pd <- md - (-2 *sum(log(dlnorm(Grub$value,a["beta0"]+a["beta1"]*Grub$grubsize 
+#                    + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+# c(pd,md,pd+md)
+# dic_val <- extract.runjags(lognormal_rep, "dic")
+# dic_val
+# summary(dic_val)
 
-#2.) extract the res values 
-subset_pred <- grepl("res\\[", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(mcmc_rep,subset_pred)
-#how look the average residuals in the log world?
-hist(apply(mcmc_subset,2,mean), breaks = 20)
 
-#3.) Get the DIC running
-subset_pred <- grepl("Deviance", dimnames(mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(mcmc_rep,subset_pred)
-mcmc_subset_dic<- -2* mcmc_subset
-md <- mean(mcmc_subset_dic)
-
-a <- summary(ModelLogN_rep)
-a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
-pd <- md - (-2 *sum(log(dlnorm(Grub$value,a["beta0"]+a["beta1"]*Grub$grubsize 
-                   + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
-c(pd,md,pd+md)
-dic_val <- extract.runjags(ModelLogN_rep, "dic")
-dic_val
-summary(dic_val)

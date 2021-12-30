@@ -1,10 +1,11 @@
 model
 {
     for (i in 1:N) {
-        y[i] ~ dweib(k, invlambda)
-        log(taub[i]) <- beta0 * x[i]
+        y[i] ~ dweib(k, invlambda[i])
+        invlambda[i] <- pow(t[i], 1)
+        t[i] <- exp(-h[i])
+        h[i] <- beta0 * x[i]
     }
     k ~ dunif(0.1, 100)
-    beta0 ~ dunif(-2, 2)
-    invlambda ~ dunif(-100, 100)
+    beta0 ~ dunif(-50, 50)
 }
