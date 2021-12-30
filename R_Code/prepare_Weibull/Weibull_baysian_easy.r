@@ -4,23 +4,23 @@ library(coda)
 library(ggplot2)
 library(R2OpenBUGS)
 ####DATA SPECIFICATION####
-data <- rweibull(100,2,1)
-x <- sample(c(1:100)*0.01,100,T)
 
+x <- sample(c(1:100)*0.01,100,T)
+beta0 <- 3
+data <- rweibull(100,2,exp(beta0 * x))
 #Modell gegenüber wikipedia in openBugs: k=k lambda =1/lambda
 
 # MODEL SPECIFICATION 
 model.function <- function(){
   for (i in 1:N){
-    y[i] ~ dweib(k, invlambda)
-    log(taub[i]) <- beta0 * x[i]
-    #log(invlambda[i]) <- beta0 * x[i]
+    y[i] ~ dweib(k, invlambda[i])
+    invlambda[i] <- pow(t[i], 1)
+    t[i] <- exp(-h[i])
+    h[i] <- beta0 * x[i]
   }
   #priors
   k ~ dunif(0.1,100)
-  
-  beta0 ~ dunif(-2,2)
-  invlambda ~ dunif(-100,100)
+  beta0 ~ dunif(-50,50)
 }
 write.model(model.function, "txt_files\\Weibull_test1.txt")
 #all the stuff that is distributed
@@ -41,3 +41,9 @@ Weibull_bayes <- read.bugs(model.out)
 #in openbugs lambda is the same as for the exponential
 #that means 1-exp(lambda*x) and not as in R 1-exp(x/lambda) 
 summary(Weibull_bayes)
+
+sum(dweibull(data,shape = 1/0.5277442,scale = exp(beta0 * x), log = T))
+
+
+estimates <- survreg(Surv(data) ~ x -1 , Grub, dist = "weibull")
+estimates
