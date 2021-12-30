@@ -1,0 +1,360 @@
+---
+title: "Summary"
+author: "Valentin"
+date: "28 12 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+source("helpfunctions.r")
+library("runjags")
+library("coda")
+library("rjags")
+library("survival")
+```
+# Introduction
+## Some Data Summary Statistics
+```{r}
+plot(survfit(Surv(value) ~ 1, data = Grub), 
+     xlab = "Days", 
+     ylab = "Overall survival probability",conf.int = F,col = 2)
+plot(survfit(Surv(value) ~ group, data = Grub), 
+     xlab = "Days", 
+     ylab = "Overall survival probability per group",conf.int = F,col = c(1,2))
+```
+#Different Models
+## Without censored without random effects
+### Lognormal
+#### Models are calculated
+For further insides take a look on the code for the models
+
+```{r echo=F}
+source("Bayes1_lognormal_jags.R")
+```
+#### Results 
+
+```{r}
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc_lognorm <- as.mcmc.list(lognorm)
+
+summary(mcmc_lognorm)
+summary(lognorm)
+
+```
+
+
+#### Diagnostics
+##### Convergence checks
+First Gelman and Rubin and Geweke Plots are created, therefore we also use coda but that is just a side note.
+```{r}
+print("gelman diag")
+gelman.diag(mcmc_lognorm, confidence = 0.95)
+gelman.plot(mcmc_lognorm, confidence = 0.95)
+print("geweke diag")
+geweke.diag(mcmc_lognorm)
+geweke.plot(mcmc_lognorm)
+```
+
+##### DIC
+
+```{r}
+extract.runjags(lognorm, "dic")
+```
+##### PPO
+PPo or better say the inverse of it
+Furthermore some average residual plots are made (could should be normal)
+
+```{r}
+subset_pred <- grepl("ppo\\[", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+#ppo which are now far of?
+plot(1/apply(as.matrix(mcmc_subset),2,mean))
+
+
+#2.) extract the res values 
+subset_pred <- grepl("res\\[", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+#how look the average residuals in the log world?
+hist(apply(mcmc_subset,2,mean), breaks = 20)
+
+```
+
+##### PPC and more summary
+some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+```{r}
+plot(lognorm)
+print(lognorm)
+#The DIC Value for model comparison
+
+cat("second kind of the plots seen before")
+plot(mcmc_lognorm)
+```
+
+##### DIC Manual
+
+```{r}
+
+#3.) Get the DIC running
+subset_pred <- grepl("Deviance", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+mcmc_subset_dic<- mcmc_subset
+md <- mean(mcmc_subset_dic)
+
+a <- summary(lognormal_rep)
+a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
+pd <- md - (-2 *sum(log(dlnorm(Grub$value,a["beta0"]+a["beta1"]*Grub$grubsize 
+                   + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+c(pd,md,pd+md)
+dic_val <- extract.runjags(lognormal_rep, "dic")
+dic_val
+
+```
+### Weibull
+
+```{r  echo=F}
+source("Bayes1_Weibull_jags.R")
+
+```
+
+
+df
+#### Results 
+
+```{r}
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc_weibull <- as.mcmc.list(weibull)
+
+summary(mcmc_weibull)
+summary(weibull)
+```
+#### Diagnostics
+##### Convergence checks
+```{r}
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc_weibull <- as.mcmc.list(weibull)
+
+print("gelman diag")
+gelman.diag(mcmc_weibull, confidence = 0.95)
+gelman.plot(mcmc_weibull, confidence = 0.95)
+print("geweke diag")
+geweke.diag(mcmc_weibull)
+geweke.plot(mcmc_weibull)
+```
+
+##### DIC
+
+```{r}
+extract.runjags(weibull, "dic")
+```
+##### PPO
+PPO or better say the inverse of it
+Furthermore some average residual plots are made (could should be normal)
+
+```{r}
+subset_pred <- grepl("ppo\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
+#ppo which are now far of?
+plot(1/apply(as.matrix(mcmc_subset),2,mean))
+
+```
+
+##### PPC and more summary
+some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+```{r}
+plot(weibull)
+#The DIC Value for model comparison
+
+cat("second kind of the plots seen before")
+plot(mcmc_weibull)
+```
+
+##### DIC Manual
+
+```{r}
+
+#calculate md
+subset_pred <- grepl("Deviance", dimnames(weibull_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
+mcmc_subset_dic<- mcmc_subset
+md <- mean(mcmc_subset_dic)
+md
+
+#calculate pd
+a <- summary(weibull_rep)
+a1 <- a[c("beta0","beta1","beta2","scale"),"Mean"]
+scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group)
+#for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
+shape <- 1/a1["scale"]
+pd <- md - -2*sum(dweibull(Grub$value, scale = scale, shape  = shape, log = T))
+
+c(pd,md,pd+md)
+dic_val <- extract.runjags(weibull_rep, "dic")
+dic_val
+
+
+
+```
+## Without censored with random effects
+### Lognormal
+#### Models are calculated
+
+```{r echo=F}
+source("Bayes1_lognormal_Random_jags.R")
+```
+#### Results 
+
+```{r}
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc_lognorm_rand <- as.mcmc.list(lognorm_rand)
+
+summary(mcmc_lognorm_rand)
+summary(lognorm_rand)
+
+```
+
+
+#### Diagnostics
+##### Convergence checks
+First Gelman and Rubin and Geweke Plots are created, therefore we also use coda but that is just a side note.
+```{r}
+print("gelman diag")
+gelman.diag(mcmc_lognorm_rand, confidence = 0.95)
+gelman.plot(mcmc_lognorm_rand, confidence = 0.95)
+print("geweke diag")
+geweke.diag(mcmc_lognorm_rand)
+geweke.plot(mcmc_lognorm_rand)
+```
+
+##### DIC
+
+```{r}
+extract.runjags(lognorm_rand, "dic")
+```
+##### PPO
+PPo or better say the inverse of it
+Furthermore some average residual plots are made (could should be normal)
+
+```{r}
+subset_pred <- grepl("ppo\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+#ppo which are now far of?
+plot(1/apply(as.matrix(mcmc_subset),2,mean))
+
+
+#2.) extract the res values 
+subset_pred <- grepl("res\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+#how look the average residuals in the log world?
+hist(apply(mcmc_subset,2,mean), breaks = 20)
+
+```
+
+##### PPC and more summary
+some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+```{r}
+plot(lognorm_rand)
+print(lognorm_rand)
+#The DIC Value for model comparison
+
+cat("second kind of the plots seen before")
+plot(mcmc_lognorm_rand)
+```
+
+##### deal with correlation
+include the splitted file
+```{r}
+
+```
+
+### Weibull
+
+```{r  echo=F}
+source("Bayes1_Weibull_Random_jags.R")
+
+```
+
+#### Results 
+
+```{r}
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc_weibull <- as.mcmc.list(weibull)
+
+summary(mcmc_weibull)
+summary(weibull)
+```
+#### Diagnostics
+##### Convergence checks
+```{r}
+#coda integration so also coda stuff is available
+#Model Diagnostik plots
+mcmc_weibull <- as.mcmc.list(weibull)
+
+print("gelman diag")
+gelman.diag(mcmc_weibull, confidence = 0.95)
+gelman.plot(mcmc_weibull, confidence = 0.95)
+print("geweke diag")
+geweke.diag(mcmc_weibull)
+geweke.plot(mcmc_weibull)
+```
+
+##### DIC
+
+```{r}
+extract.runjags(weibull, "dic")
+```
+##### PPO
+PPO or better say the inverse of it
+Furthermore some average residual plots are made (could should be normal)
+
+```{r}
+subset_pred <- grepl("ppo\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
+#ppo which are now far of?
+plot(1/apply(as.matrix(mcmc_subset),2,mean))
+
+```
+
+##### PPC and more summary
+some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+```{r}
+plot(weibull)
+#The DIC Value for model comparison
+
+cat("second kind of the plots seen before")
+plot(mcmc_weibull)
+```
+
+##### DIC Manual
+
+```{r}
+
+#calculate md
+subset_pred <- grepl("Deviance", dimnames(weibull_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
+mcmc_subset_dic<- mcmc_subset
+md <- mean(mcmc_subset_dic)
+md
+
+#calculate pd
+a <- summary(weibull_rep)
+a1 <- a[c("beta0","beta1","beta2","scale"),"Mean"]
+scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group)
+#for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
+shape <- 1/a1["scale"]
+pd <- md - -2*sum(dweibull(Grub$value, scale = scale, shape  = shape, log = T))
+
+c(pd,md,pd+md)
+dic_val <- extract.runjags(weibull_rep, "dic")
+dic_val
+
+
+
+```
+
