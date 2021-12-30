@@ -284,38 +284,38 @@ source("Bayes1_Weibull_Random_jags.R")
 ```{r}
 #coda integration so also coda stuff is available
 #Model Diagnostik plots
-mcmc_weibull <- as.mcmc.list(weibull)
+mcmc_weibull_rand <- as.mcmc.list(weibull_rand)
 
-summary(mcmc_weibull)
-summary(weibull)
+summary(mcmc_weibull_rand)
+summary(weibull_rand)
 ```
 #### Diagnostics
 ##### Convergence checks
 ```{r}
 #coda integration so also coda stuff is available
 #Model Diagnostik plots
-mcmc_weibull <- as.mcmc.list(weibull)
+mcmc_weibull_rand <- as.mcmc.list(weibull_rand)
 
 print("gelman diag")
-gelman.diag(mcmc_weibull, confidence = 0.95)
-gelman.plot(mcmc_weibull, confidence = 0.95)
+gelman.diag(mcmc_weibull_rand, confidence = 0.95)
+gelman.plot(mcmc_weibull_rand, confidence = 0.95)
 print("geweke diag")
-geweke.diag(mcmc_weibull)
-geweke.plot(mcmc_weibull)
+geweke.diag(mcmc_weibull_rand)
+geweke.plot(mcmc_weibull_rand)
 ```
 
 ##### DIC
 
 ```{r}
-extract.runjags(weibull, "dic")
+extract.runjags(weibull_rand, "dic")
 ```
 ##### PPO
 PPO or better say the inverse of it
 Furthermore some average residual plots are made (could should be normal)
 
 ```{r}
-subset_pred <- grepl("ppo\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
+subset_pred <- grepl("ppo\\[", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_rand_mcmc_rep,subset_pred)
 #ppo which are now far of?
 plot(1/apply(as.matrix(mcmc_subset),2,mean))
 
@@ -324,35 +324,24 @@ plot(1/apply(as.matrix(mcmc_subset),2,mean))
 ##### PPC and more summary
 some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
 ```{r}
-plot(weibull)
+plot(weibull_rand)
 #The DIC Value for model comparison
 
 cat("second kind of the plots seen before")
-plot(mcmc_weibull)
+plot(mcmc_weibull_rand)
 ```
 
-##### DIC Manual
+##### PPC Random Effect Intercept
 
 ```{r}
-
-#calculate md
-subset_pred <- grepl("Deviance", dimnames(weibull_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
-mcmc_subset_dic<- mcmc_subset
-md <- mean(mcmc_subset_dic)
-md
-
-#calculate pd
-a <- summary(weibull_rep)
-a1 <- a[c("beta0","beta1","beta2","scale"),"Mean"]
-scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group)
-#for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
-shape <- 1/a1["scale"]
-pd <- md - -2*sum(dweibull(Grub$value, scale = scale, shape  = shape, log = T))
-
-c(pd,md,pd+md)
-dic_val <- extract.runjags(weibull_rep, "dic")
-dic_val
+summary_weibull <- summary(weibull_rand_mcmc_rep)
+b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
+#mean(b_params[1:10,1])
+#attributes(summary_weibull$statistics)
+#how unnormal the random effects
+mean(get_values(weibull_rand_mcmc_rep,"tmax.test"))
+mean(get_values(weibull_rand_mcmc_rep,"tmin.test"))
+mean(get_values(weibull_rand_mcmc_rep,"ks.test"))
 
 
 

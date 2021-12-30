@@ -8,30 +8,37 @@ library("rjags")
 
 Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
 
+# model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
+#                     x2 = Grub$group, id = Grub$id, Nsubj = length(unique(Grub$id)))
 model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
-                    x2 = Grub$group, id = Grub$id, Nsubj = length(unique(Grub$id)))
+                    id = Grub$id, Nsubj = length(unique(Grub$id)))
 
 # MODEL SPECIFICATION 
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dweib(k, invlambda[i])
-    log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
+    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
+    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
   }
   #priors
   k ~ dunif(0,100)
-  beta0 ~ dnorm(0,0.000001)
+  # beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
-  beta2 ~ dnorm(0,0.000001)
+  sigma ~ dunif(0,100)
+  # beta2 ~ dnorm(0,0.000001)
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(0,0.1)
+    b0[i] ~ dnorm(0,sigma)
   }
 }"
 
 #Monitored Variables
-parameters <- c("k", "beta2", "beta0", "beta1", "b0")
+# parameters <- c("k", "beta2", "beta0", "beta1", "b0")
+parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
 
-model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
-                    list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))))
+# model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
+#                     list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))))
+model.inits <- list(list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))),
+                    list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))))
 
 
 runjags.options(method = "rjparallel")
@@ -41,6 +48,8 @@ weibull_rand <- run.jags(model = model.function,
                     inits = model.inits, burnin = 2000,
                     sample = 5000, thin = 1, n.chains = 2)
 
+
+summary(weibull_rand)
 # 
 # Weibull_bayes <- read.bugs(model.out)
 # 
@@ -53,28 +62,29 @@ weibull_rand <- run.jags(model = model.function,
 #####With Simulation of PPC####
 #Bayes1_Weibull_random.r
 
-Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
-
-model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
-                    x2 = Grub$group, id = Grub$id, Nsubj = length(unique(Grub$id)))
-
 # MODEL SPECIFICATION
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dweib(k, invlambda[i])
-    log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
+    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
+    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
   }
   #priors
   k ~ dunif(0,100)
-  beta0 ~ dnorm(0,0.000001)
+  # beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
-  beta2 ~ dnorm(0,0.000001)
+  # beta2 ~ dnorm(0,0.000001)
+  sigma ~ dunif(0,100)  
+    
     for (i in 1:N){
     ppo[i] <- dweib(y[i],k, invlambda[i])
   }
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(0,0.1)
-    b0_rep[i]~ dnorm(0,0.1)
+    b0[i] ~ dnorm(0,sigma)
+    #mu_gr[i] <- mean(beta0 + beta1 *x1[i] + beta2 *x2[i])
+    b0_rep[i]~ dnorm(0,sigma)
+    
+    
     # Ranked thetas
     rank_b01[i,1:Nsubj] <- sort(b0[1:Nsubj])
     rank_b0[i] <- rank_b01[i,i]
@@ -111,7 +121,7 @@ model.function <- "model{
   ks.test <- step(ks.rep2-ks)
 
 }"
-parameters = c("ppo","k", "beta2", "beta0", "beta1", "b0","tmin.test","tmax.test","ks.test")
+parameters = c("ppo","k", "beta2", "beta0", "beta1", "b0","tmin.test","tmax.test","ks.test", "sigma")
 
 
 weibull_rand_rep <- run.jags(model = model.function,
@@ -120,19 +130,5 @@ weibull_rand_rep <- run.jags(model = model.function,
                          sample = 5000, thin = 1, n.chains = 2)
 
 weibull_rand_mcmc_rep <- as.mcmc.list(weibull_rand_rep)
-
-# 
-# Weibull_bayes <- read.bugs(model.out)
-# 
-# summary_weibull <- summary(Weibull_bayes)
-# b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
-# mean(b_params[1:10,1])
-# attributes(summary_weibull$statistics)
-# #how unnormal the random effects
-# mean(get_values(Weibull_bayes,"tmax.test"))
-# mean(get_values(Weibull_bayes,"tmin.test"))
-# mean(get_values(Weibull_bayes,"ks.test"))
-# 
-
 
 
