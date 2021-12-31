@@ -8,10 +8,10 @@ library("rjags")
 
 Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
 
-# model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
-#                     x2 = Grub$group, id = Grub$id, Nsubj = length(unique(Grub$id)))
 model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
-                    id = Grub$id, Nsubj = length(unique(Grub$id)))
+                    x2 = Grub$group, id = Grub$id, Nsubj = length(unique(Grub$id)))
+# model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
+#                     id = Grub$id, Nsubj = length(unique(Grub$id)))
 
 # MODEL SPECIFICATION 
 model.function <- "model{
@@ -22,23 +22,24 @@ model.function <- "model{
   }
   #priors
   k ~ dunif(0,100)
-  # beta0 ~ dnorm(0,0.000001)
+  beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
   sigma ~ dunif(0,100)
-  # beta2 ~ dnorm(0,0.000001)
+  beta2 ~ dnorm(0,0.000001)
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(0,sigma)
+    b0[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
+    b0_rep[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
   }
 }"
 
 #Monitored Variables
-# parameters <- c("k", "beta2", "beta0", "beta1", "b0")
-parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
+parameters <- c("k", "sigma", "beta2", "beta0", "beta1","b0", "b0_rep")
+#parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
 
-# model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
-#                     list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))))
-model.inits <- list(list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))),
-                    list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))))
+model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
+                    list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))))
+# model.inits <- list(list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))),
+#                     list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))))
 
 
 runjags.options(method = "rjparallel")
@@ -49,7 +50,7 @@ weibull_rand <- run.jags(model = model.function,
                     sample = 5000, thin = 1, n.chains = 2)
 
 
-summary(weibull_rand)
+plot(weibull_rand)
 # 
 # Weibull_bayes <- read.bugs(model.out)
 # 
@@ -71,18 +72,19 @@ model.function <- "model{
   }
   #priors
   k ~ dunif(0,100)
-  # beta0 ~ dnorm(0,0.000001)
+  beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
-  # beta2 ~ dnorm(0,0.000001)
+  beta2 ~ dnorm(0,0.000001)
   sigma ~ dunif(0,100)  
     
     for (i in 1:N){
     ppo[i] <- dweib(y[i],k, invlambda[i])
   }
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(0,sigma)
+    b0[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
+    b0_rep[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
     #mu_gr[i] <- mean(beta0 + beta1 *x1[i] + beta2 *x2[i])
-    b0_rep[i]~ dnorm(0,sigma)
+    #b0_rep[i]~ dnorm(0,sigma)
     
     
     # Ranked thetas
@@ -121,7 +123,7 @@ model.function <- "model{
   ks.test <- step(ks.rep2-ks)
 
 }"
-parameters = c("ppo","k", "beta2", "beta0", "beta1", "b0","tmin.test","tmax.test","ks.test", "sigma")
+parameters = c("ppo","k", "beta2", "beta0","sigma", "b0_rep", "beta1", "b0","tmin.test","tmax.test","ks.test", "sigma")
 
 
 weibull_rand_rep <- run.jags(model = model.function,

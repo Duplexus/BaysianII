@@ -81,8 +81,6 @@ model.function <- "model{
     #for DIC
     D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
   }
-  K <- sort(D)
-  K <- K[2]
   Deviance <- sum(D[])
 }"
 parameters <-c("beta0", "beta1", "beta2", "sigma","ppo","res","mu","Deviance")
