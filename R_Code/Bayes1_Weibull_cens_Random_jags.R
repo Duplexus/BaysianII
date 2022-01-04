@@ -4,6 +4,8 @@ library("runjags")
 library("coda")
 library("dplyr")
 Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
+
+
 Grub <- Grub %>% arrange(upperlim)
 length_Upper <- length(sort(Grub$upperlim))
 #10
@@ -26,29 +28,30 @@ model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dweib(k, invlambda[i])
-    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
-    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
+    log(invlambda[i]) <- -(beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]])
   }
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dweib(k, invlambda[i])
-    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
-    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
+    invlambda[i] <- pow(t[i], k)
+    t[i] <- exp(-h[i])
+    h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
   }
   #priors
+  tau_b0 <- 1/sigma_b0
+  sigma_b0 ~ dunif(0,100)
+  # similar to dgamma(1,0.0001) bzw. dgamma(1,10000) if interpreted as we would get it from the exponential 
   k ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
-  sigma ~ dunif(0,100)
   beta2 ~ dnorm(0,0.000001)
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
-    b0_rep[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
+    b0[i] ~ dnorm(0,tau_b0)
   }
 }"
 
 #Monitored Variables
-parameters <- c("k", "sigma", "beta2", "beta0", "beta1","b0", "b0_rep")
+parameters <- c("k", "scale", "beta2", "beta0", "beta1","b0")
 #parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
 
 model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
@@ -76,17 +79,25 @@ model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dweib(k, invlambda[i])
-    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
-    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
+    y_rep[i] ~ dweib(k, invlambda[i])
+    invlambda[i] <- pow(t[i], k)
+    t[i] <- exp(-h[i])
+    h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
   }
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dweib(k, invlambda[i])
-    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
-    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
+    y_rep[i] ~ dweib(k, invlambda[i])
+    invlambda[i] <- pow(t[i], k)
+    t[i] <- exp(-h[i])
+    h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
+    
   }
   #priors
+  tau_b0 <- 1/sigma_b0
+  sigma_b0 ~ dunif(0,100)
   k ~ dunif(0,100)
+  scale <- 1/k
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)
@@ -94,13 +105,14 @@ model.function <- "model{
     
     for (i in 1:(N1+N2)){
     ppo[i] <- dweib(y[i],k, invlambda[i])
-  }
+    ppo_rep[i] <- dweib(y_rep[i],k, invlambda[i])
+    #for DIC
+    D[i] <- -2*log(dweib(y[i],k, invlambda[i]))
+    }
+  Deviance <- sum(D[])
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
-    b0_rep[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
-    #mu_gr[i] <- mean(beta0 + beta1 *x1[i] + beta2 *x2[i])
-    #b0_rep[i]~ dnorm(0,sigma)
-    
+    b0[i] ~ dnorm(0,tau_b0)
+    b0_rep[i] ~ dnorm(0,tau_b0)
     
     # Ranked thetas
     rank_b01[i,1:Nsubj] <- sort(b0[1:Nsubj])
@@ -136,9 +148,22 @@ model.function <- "model{
   ks.rep2 <- ks.rep[Nsubj]
 
   ks.test <- step(ks.rep2-ks)
+  
+  # Sinharay and Stern test
+  #hard coding since we have 20 random effects this is fine
+  nmed <- round(20/2)
+  tmed1 <- sort(b0[])
+  tmed <- tmed1[nmed]
+  tmed.rep1 <- sort(b0_rep[])
+  tmed.rep <- tmed1[nmed]
+
+  ss <- abs(tmax-tmed)-abs(tmin-tmed)
+  ss.rep <-abs(tmax.rep-tmed.rep)-abs(tmin.rep-tmed.rep)
+  ss.test <- step(ss.rep-ss) 
 
 }"
-parameters = c("ppo","k", "beta2", "beta0","sigma", "b0_rep", "beta1", "b0","tmin.test","tmax.test","ks.test", "sigma")
+parameters = c("y_rep","ppo_rep","ppo","k", "beta2", "beta0","sigma", "b0_rep", "beta1", "b0",
+               "tmin.test","tmax.test","ks.test", "sigma","Deviance","scale","ss.test","y")
 
 
 weibull_cens_rand_rep <- run.jags(model = model.function,

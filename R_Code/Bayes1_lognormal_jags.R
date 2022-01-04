@@ -14,6 +14,12 @@ model.inits <- list(list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 ),
 #Monitored Variables
 parameters <-c("beta0", "beta1", "beta2", "sigma")
 
+
+
+#what happens if big grub size is forbidden
+
+
+
 #Initial Values
 model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
                     x2 = Grub$group)
@@ -38,7 +44,7 @@ lognorm <- run.jags(model = model.function,
                      monitor = parameters, data = model.data,
                      inits = model.inits, burnin = 2000,
                      sample = 5000, thin = 1, n.chains = 2)
-
+lognorm_mcmc <- as.mcmc.list(lognorm)
     # ####If not used in Master decomment once####
     # #Model Diagnostics and so on 
     # #Starts with ModelLogN and plots it and calculates BIC and the 
@@ -67,6 +73,7 @@ model.function <- "model{
   for (i in 1:N){
     y[i] ~ dlnorm(mu[i], sigma)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
+    y_rep[i] ~ dlnorm(mu[i], sigma)
   }
   #priors
   sigma ~ dgamma(0.001, 0.001)
@@ -76,6 +83,7 @@ model.function <- "model{
   #ppc look on residuals
   for (i in 1:N){
     ppo[i] <- dlnorm(y[i],mu[i],sigma)
+    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],sigma)
     k[i] <- log(y[i])
     res[i] <- k[i] - mu[i]
     #for DIC
@@ -83,12 +91,12 @@ model.function <- "model{
   }
   Deviance <- sum(D[])
 }"
-parameters <-c("beta0", "beta1", "beta2", "sigma","ppo","res","mu","Deviance")
+parameters <-c("ppo_rep","beta0", "beta1", "beta2", "sigma","ppo","res","mu","Deviance","y_rep")
 lognormal_rep <- run.jags(model = model.function,
                       monitor = parameters, data = model.data,
                       inits = model.inits, burnin = 2000,
-                      sample = 5000, thin = 1, n.chains = 2)
-lognormal_mcmc_rep <- as.mcmc.list(lognormal_rep)
+                      sample = 5000, thin = 10, n.chains = 2)
+lognorm_mcmc_rep <- as.mcmc.list(lognormal_rep)
 
 
 
@@ -118,5 +126,13 @@ lognormal_mcmc_rep <- as.mcmc.list(lognormal_rep)
 # dic_val <- extract.runjags(lognormal_rep, "dic")
 # dic_val
 # summary(dic_val)
+
+
+
+# library(ggplot2)
+# summary(lm(I(log(Grub$value)) ~ Grub$grubsize * Grub$group))
+# Grub$group <- as.factor()
+# ggplot(Grub, aes(y = value, x = grubsize, colour = as.factor(group))) + geom_point()
+# 
 
 

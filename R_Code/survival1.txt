@@ -1,12 +1,12 @@
 model
 {
     for (i in 1:N) {
-        y[i] ~ dlnorm(mu[i], sigma)
-        predict[i] ~ dlnorm(mu[i], sigma)
-        mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i]
+        y[i] ~ dlnorm(y.hat[i], tau)
+        y.hat[i] <- beta0 + beta1 * x[i, 1] + beta2 * x[i, 2]
     }
-    sigma ~ dgamma(0.001, 0.001)
     beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
+    tau ~ dgamma(0.001, 0.001)
+    sigma <- pow(tau, -2)
 }

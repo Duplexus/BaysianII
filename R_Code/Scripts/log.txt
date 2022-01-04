@@ -1,20 +1,43 @@
-unknown type of logical function error pos 310
-model must be checked before data is loaded
-model must be checked before compiling
-model must have been compiled but not updated to be able to change RN generator
-BugsCmds:NoCompileInits
-BugsCmds:NoCompileInits
-model must be compiled before generating initial values
-model must be initialized before updating
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before monitors used
-model must be initialized before DIC can be monitored
-model must be initialized before updating
-model must be initialized before monitors used
-DIC monitor not set
+model is syntactically correct
+data loaded
+model compiled
+initial values loaded but chain contains uninitialized variables (variables not in the model: predict)
+initial values loaded but chain contains uninitialized variables (variables not in the model: predict)
+initial values generated, model initialized
+model is updating
+1000 updates took 2 s
+model is updating
+4000 updates took 9 s
+CODA files written
+Summary statistics
+		mean	sd	val2.5pc	median	val97.5pc	sample
+	b0[1]	0.2276	0.2382	-0.2481	0.2294	0.6918	8000
+	b0[2]	0.312	0.2368	-0.1456	0.3103	0.787	8000
+	b0[3]	-0.1871	0.2374	-0.6581	-0.1868	0.2671	8000
+	b0[4]	-1.04	0.2614	-1.565	-1.032	-0.5484	8000
+	b0[5]	0.3531	0.2407	-0.1131	0.3524	0.8351	8000
+	b0[6]	0.3517	0.2349	-0.09006	0.3464	0.8219	8000
+	b0[7]	-0.1298	0.2357	-0.5979	-0.13	0.3363	8000
+	b0[8]	-0.1775	0.2348	-0.64	-0.1753	0.274	8000
+	b0[9]	0.1722	0.2361	-0.2917	0.1706	0.6376	8000
+	b0[10]	0.08088	0.2328	-0.3793	0.0791	0.5472	8000
+	b0[11]	0.232	0.2383	-0.2174	0.2297	0.7106	8000
+	b0[12]	-0.3866	0.2385	-0.8766	-0.3812	0.06985	8000
+	b0[13]	0.2452	0.2338	-0.2104	0.2406	0.7121	8000
+	b0[14]	-0.08605	0.238	-0.5599	-0.08387	0.3748	8000
+	b0[15]	0.04358	0.2343	-0.4068	0.04378	0.4964	8000
+	b0[16]	-0.1603	0.233	-0.6327	-0.1586	0.2994	8000
+	b0[17]	-0.3408	0.2372	-0.807	-0.3382	0.1162	8000
+	b0[18]	0.3001	0.2353	-0.1563	0.2983	0.7698	8000
+	b0[19]	0.1628	0.2336	-0.2905	0.1626	0.6205	8000
+	b0[20]	-0.01157	0.2368	-0.4852	-0.00876	0.4437	8000
+	beta0	1.359	0.1583	1.042	1.359	1.679	8000
+	beta1	-0.05143	0.05315	-0.1576	-0.05108	0.05582	8000
+	beta2	-0.3052	0.2234	-0.7473	-0.3069	0.1296	8000
+	deviance	586.4	7.116	574.9	585.7	602.0	8000
+	sigma	2.908	0.3736	2.226	2.892	3.679	8000
+Deviance information
+	Dbar	Dhat	DIC	pD	
+y	586.4	568.0	604.9	18.44
+total	586.4	568.0	604.9	18.44
+History

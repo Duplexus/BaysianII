@@ -1,0 +1,18 @@
+model
+{
+    for (i in 1:N) {
+        y[i] ~ dnorm(y.hat[i], tau)
+        y.hat[i] <- b0[id[i]] + beta1 * x[i, 1] + beta2 * x[i, 
+            2] + beta0
+    }
+    for (j in 1:M) {
+        b0[j] ~ dnorm(0.00000E+00, tau_b0)
+    }
+    sigma ~ dunif(0.00000E+00, 100)
+    tau <- pow(sigma, -2)
+    sigma_b0 ~ dunif(0.00000E+00, 100)
+    tau_b0 <- pow(sigma_b0, -2)
+    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
+}

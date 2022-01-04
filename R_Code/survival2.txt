@@ -1,0 +1,14 @@
+model
+{
+    for (i in 1:N) {
+        mu[i] <- beta0 + beta1 * x[i, 1] + beta2 * x[i, 2]
+        inv_alpha[i] <- exp(-mu[i])
+        lambda[i] <- pow(inv_alpha[i], gamma)
+        y[i] ~ dweib(gamma, lambda[i])
+    }
+    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
+    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
+    gamma ~ dunif(0.00000E+00, 10)
+    sigma <- 1/gamma
+}

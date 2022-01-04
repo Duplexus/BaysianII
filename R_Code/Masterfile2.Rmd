@@ -8,14 +8,18 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+#helpfunctions is just used but getvalues() i think
 source("helpfunctions.r")
 library("runjags")
 library("coda")
 library("rjags")
 library("survival")
+set.seed(8928612)
 ```
 # Introduction
 ## Some Data Summary Statistics
+
+Here I just Plot the survival functions, once for both groups together and once seperated
 ```{r}
 plot(survfit(Surv(value) ~ 1, data = Grub), 
      xlab = "Days", 
@@ -24,38 +28,42 @@ plot(survfit(Surv(value) ~ group, data = Grub),
      xlab = "Days", 
      ylab = "Overall survival probability per group",conf.int = F,col = c(1,2))
 ```
-#Different Models
+Different Models
 ## Without censored without random effects
 ### Lognormal
 #### Models are calculated
-For further insides take a look on the code for the models
+We run a lognormal Model, specified in the files. Keep in Mind the data for Grubsize is already normalized
 
 ```{r echo=F}
 source("Bayes1_lognormal_jags.R")
 ```
 #### Results 
+Just the Plots of the Posterior curves of the Parameters and there summarys
 
 ```{r}
-#coda integration so also coda stuff is available
-#Model Diagnostik plots
-mcmc_lognorm <- as.mcmc.list(lognorm)
 
-summary(mcmc_lognorm)
+summary(lognorm_mcmc)
 summary(lognorm)
+
+plot(lognorm)
+print(lognorm)
+cat("second kind of the plots seen before")
+plot(lognorm_mcmc)
 
 ```
 
 
 #### Diagnostics
 ##### Convergence checks
-First Gelman and Rubin and Geweke Plots are created, therefore we also use coda but that is just a side note.
+First Gelman and Rubin and Geweke Plots are created, looks kind of ok in my eyes
 ```{r}
 print("gelman diag")
-gelman.diag(mcmc_lognorm, confidence = 0.95)
-gelman.plot(mcmc_lognorm, confidence = 0.95)
+gelman.diag(lognorm_mcmc, confidence = 0.95)
+gelman.plot(lognorm_mcmc, confidence = 0.95)
 print("geweke diag")
-geweke.diag(mcmc_lognorm)
-geweke.plot(mcmc_lognorm)
+geweke.diag(lognorm_mcmc)
+geweke.plot(lognorm_mcmc)
+
 ```
 
 ##### DIC
@@ -63,87 +71,113 @@ geweke.plot(mcmc_lognorm)
 ```{r}
 extract.runjags(lognorm, "dic")
 ```
-##### PPO
-PPo or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
+##### CPO
+I always unluckly wrote PPO instead of CPO so it is the same in this document
+ 
 
 ```{r}
-subset_pred <- grepl("ppo\\[", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
+subset_pred <- grepl("ppo\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 
 #2.) extract the res values 
-subset_pred <- grepl("res\\[", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+subset_pred <- grepl("res\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
 #how look the average residuals in the log world?
 hist(apply(mcmc_subset,2,mean), breaks = 20)
 
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+PPC how often true y in 95% intervall
 ```{r}
-plot(lognorm)
-print(lognorm)
-#The DIC Value for model comparison
+subset_pred <- grepl("y_rep\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
 
-cat("second kind of the plots seen before")
-plot(mcmc_lognorm)
+# mcmc_subset
+#how often are the values bigger or smallen than the predicted ones
+max(apply(apply(mcmc_subset,1,function(x){x > Grub$value}),2,mean))
+
+#how do the distribution look like comapred to the origninal one
+summary(mcmc_subset[,1])
+hist(Grub$value)
+hist(mcmc_subset[1,],breaks = 20)
+hist(mcmc_subset[2,],breaks = 20)
+hist(mcmc_subset[3,],breaks = 20)
+
+# how extreme are the predicted values compared to the original ones
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
 ```
 
 ##### DIC Manual
-
+This is just for comparison to the automatic calculated one. Used later for the interval censored part
 ```{r}
-
 #3.) Get the DIC running
+#https://en.wikipedia.org/wiki/Deviance_information_criterion
+
+
 subset_pred <- grepl("Deviance", dimnames(lognormal_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
 mcmc_subset_dic<- mcmc_subset
 md <- mean(mcmc_subset_dic)
+#This is the calculation of Pd but somehow it does not work for the random effectmodels for me, probably I have made some mistake, but I cant find it. So I switch to pv instead, https://www.mrc-bsu.cam.ac.uk/software/bugs/the-bugs-project-dic/ which is also kinda recomended and is the variance of the posterior divided by 2, comes from some chisquare approx. Explaination on the link can be found. First still the implementation of BIC is written down.
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
 
-a <- summary(lognormal_rep)
-a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
+subset_pred <- grepl("beta2", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("sigma", dimnames(lognormal_mcmc_rep[[1]])[[2]])
+a["sigma"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+
 pd <- md - (-2 *sum(log(dlnorm(Grub$value,a["beta0"]+a["beta1"]*Grub$grubsize 
                    + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+pv <- var(mcmc_subset_dic)/2
 c(pd,md,pd+md)
-dic_val <- extract.runjags(lognormal_rep, "dic")
-dic_val
+c(pv,md,pv+md)
 
 ```
+
+
 ### Weibull
+#### Models are calculated
 
 ```{r  echo=F}
 source("Bayes1_Weibull_jags.R")
-
 ```
 
-
-df
 #### Results 
 
 ```{r}
-#coda integration so also coda stuff is available
-#Model Diagnostik plots
-mcmc_weibull <- as.mcmc.list(weibull)
 
-summary(mcmc_weibull)
+summary(weibull_mcmc)
 summary(weibull)
+plot(weibull)
+plot(weibull_mcmc)
 ```
 #### Diagnostics
 ##### Convergence checks
 ```{r}
-#coda integration so also coda stuff is available
 #Model Diagnostik plots
-mcmc_weibull <- as.mcmc.list(weibull)
+weibull_mcmc <- as.mcmc.list(weibull)
 
 print("gelman diag")
-gelman.diag(mcmc_weibull, confidence = 0.95)
-gelman.plot(mcmc_weibull, confidence = 0.95)
+gelman.diag(weibull_mcmc, confidence = 0.95)
+gelman.plot(weibull_mcmc, confidence = 0.95)
 print("geweke diag")
-geweke.diag(mcmc_weibull)
-geweke.plot(mcmc_weibull)
+geweke.diag(weibull_mcmc)
+geweke.plot(weibull_mcmc)
 ```
 
 ##### DIC
@@ -151,30 +185,43 @@ geweke.plot(mcmc_weibull)
 ```{r}
 extract.runjags(weibull, "dic")
 ```
-##### PPO
-PPO or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
+##### CPO
+CPO or better say the inverse of it
+ 
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
+
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+ 
 ```{r}
-plot(weibull)
-#The DIC Value for model comparison
+subset_pred <- grepl("y_rep\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
 
-cat("second kind of the plots seen before")
-plot(mcmc_weibull)
+# mcmc_subset
+
+#how do the distribution look like comapred to the origninal one
+hist(Grub$value)
+hist(mcmc_subset[1,],breaks = 20)
+
+# how extreme are the predicted values compared to the original ones
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+
 ```
 
 ##### DIC Manual
-
+Again just for comparison. For the random effect this is not written yet, I will do it probably later (03.01 17:40)
 ```{r}
 
 #calculate md
@@ -184,19 +231,30 @@ mcmc_subset_dic<- mcmc_subset
 md <- mean(mcmc_subset_dic)
 md
 
-#calculate pd
-a <- summary(weibull_rep)
-a1 <- a[c("beta0","beta1","beta2","scale"),"Mean"]
+
+subset_pred <- grepl("beta0", dimnames(weibull_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(weibull_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(weibull_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(weibull_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(weibull_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(weibull_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("scale", dimnames(weibull_mcmc_rep[[1]])[[2]])
+a["scale"] <- mean(get_values(weibull_mcmc_rep,subset_pred))
+a1 <- a
 scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group)
 #for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
 shape <- 1/a1["scale"]
 pd <- md - -2*sum(dweibull(Grub$value, scale = scale, shape  = shape, log = T))
+pd
+
+pv <- var(mcmc_subset_dic)/2
+
 
 c(pd,md,pd+md)
-dic_val <- extract.runjags(weibull_rep, "dic")
-dic_val
-
-
+c(pv,md,pv+md)
 
 ```
 ## Without censored with random effects
@@ -211,10 +269,13 @@ source("Bayes1_lognormal_Random_jags.R")
 ```{r}
 #coda integration so also coda stuff is available
 #Model Diagnostik plots
-mcmc_lognorm_rand <- as.mcmc.list(lognorm_rand)
-
-summary(mcmc_lognorm_rand)
+summary(lognorm_rand_mcmc)
 summary(lognorm_rand)
+
+plot(lognorm_rand)
+print(lognorm_rand)
+plot(lognorm_rand_mcmc)
+
 
 ```
 
@@ -224,11 +285,11 @@ summary(lognorm_rand)
 First Gelman and Rubin and Geweke Plots are created, therefore we also use coda but that is just a side note.
 ```{r}
 print("gelman diag")
-gelman.diag(mcmc_lognorm_rand, confidence = 0.95)
-gelman.plot(mcmc_lognorm_rand, confidence = 0.95)
+gelman.diag(lognorm_rand_mcmc, confidence = 0.95)
+gelman.plot(lognorm_rand_mcmc, confidence = 0.95)
 print("geweke diag")
-geweke.diag(mcmc_lognorm_rand)
-geweke.plot(mcmc_lognorm_rand)
+geweke.diag(lognorm_rand_mcmc)
+geweke.plot(lognorm_rand_mcmc)
 ```
 
 ##### DIC
@@ -236,39 +297,56 @@ geweke.plot(mcmc_lognorm_rand)
 ```{r}
 extract.runjags(lognorm_rand, "dic")
 ```
-##### PPO
-PPo or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
+##### CPO
+CPO or better say the inverse of it
+ 
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
-
-
-#2.) extract the res values 
-subset_pred <- grepl("res\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
-#how look the average residuals in the log world?
-hist(apply(mcmc_subset,2,mean), breaks = 20)
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+ 
 ```{r}
-plot(lognorm_rand)
-print(lognorm_rand)
-#The DIC Value for model comparison
 
-cat("second kind of the plots seen before")
-plot(mcmc_lognorm_rand)
+# how extreme are the predicted values compared to the original ones
+subset_pred <- grepl("y_rep\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+
+# p values not interpretable since not all observation even "have the abbility" to be so extreme, so it is even more
+# frightening to find so big differences. This is probably not the best use of PPC in the case that every observations, basically has a different distribution 
+
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+
+# how extreme is the CPO compared to the original one
+# cpo in the repeated case is much smaller than in the former case
+subset_pred <- grepl("ppo_rep\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest_rep)
+print(as.vector(order(biggest_rep,decreasing = T)))
+print("")
+
+sort(biggest_rep, decreasing = T)[1:3]
+
 ```
+##### PPC Random Effect Intercept
 
-##### deal with correlation
-include the splitted file
 ```{r}
+#Non of the tests has crazy results
+mean(get_values(lognorm_rand_mcmc_rep,"tmax.test"))
+mean(get_values(lognorm_rand_mcmc_rep,"tmin.test"))
+mean(get_values(lognorm_rand_mcmc_rep,"ks.test"))
+mean(get_values(lognorm_rand_mcmc_rep,"ss.test"))
 
 ```
 
@@ -284,24 +362,26 @@ source("Bayes1_Weibull_Random_jags.R")
 ```{r}
 #coda integration so also coda stuff is available
 #Model Diagnostik plots
-mcmc_weibull_rand <- as.mcmc.list(weibull_rand)
-
-summary(mcmc_weibull_rand)
+summary(weibull_rand_mcmc)
 summary(weibull_rand)
+
+plot(weibull_rand)
+cat("second kind of the plots seen before")
+plot(weibull_rand_mcmc)
 ```
 #### Diagnostics
 ##### Convergence checks
 ```{r}
 #coda integration so also coda stuff is available
 #Model Diagnostik plots
-mcmc_weibull_rand <- as.mcmc.list(weibull_rand)
+weibull_rand_mcmc <- as.mcmc.list(weibull_rand)
 
 print("gelman diag")
-gelman.diag(mcmc_weibull_rand, confidence = 0.95)
-gelman.plot(mcmc_weibull_rand, confidence = 0.95)
+gelman.diag(weibull_rand_mcmc, confidence = 0.95)
+gelman.plot(weibull_rand_mcmc, confidence = 0.95)
 print("geweke diag")
-geweke.diag(mcmc_weibull_rand)
-geweke.plot(mcmc_weibull_rand)
+geweke.diag(weibull_rand_mcmc)
+geweke.plot(weibull_rand_mcmc)
 ```
 
 ##### DIC
@@ -309,43 +389,117 @@ geweke.plot(mcmc_weibull_rand)
 ```{r}
 extract.runjags(weibull_rand, "dic")
 ```
-##### PPO
-PPO or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
 
+
+##### CPO
+CPO or better say the inverse of it
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(weibull_rand_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+ 
 ```{r}
-plot(weibull_rand)
-#The DIC Value for model comparison
 
-cat("second kind of the plots seen before")
-plot(mcmc_weibull_rand)
+
+# how extreme are the predicted values compared to the original ones
+subset_pred <- grepl("y_rep\\[", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_rand_mcmc_rep,subset_pred)
+
+#how do the simulated values look like
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+
+# how extreme is the CPO compared to the original one
+subset_pred <- grepl("ppo_rep\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest_rep)
+print(as.vector(order(biggest_rep,decreasing = T)))
+print("")
+
+sort(biggest_rep, decreasing = T)[1:3]
+
+
+
+
 ```
 
 ##### PPC Random Effect Intercept
 
 ```{r}
-summary_weibull <- summary(weibull_rand_mcmc_rep)
-b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
-#mean(b_params[1:10,1])
-#attributes(summary_weibull$statistics)
-#how unnormal the random effects
+# Distribution of the random effects checks
 mean(get_values(weibull_rand_mcmc_rep,"tmax.test"))
 mean(get_values(weibull_rand_mcmc_rep,"tmin.test"))
 mean(get_values(weibull_rand_mcmc_rep,"ks.test"))
+mean(get_values(weibull_rand_mcmc_rep,"ss.test"))
 
 
+
+#
+subset_pred <- grepl("b0\\[", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_rand_mcmc_rep,subset_pred)
+
+hist(apply(as.matrix(mcmc_subset),2,mean), breaks = 10)
+hist(apply(as.matrix(mcmc_subset),2,mean))
+hist(mcmc_subset, breaks = 20)
 
 ```
+
+
+##### DIC Manual
+Again just for comparison. For the random effect this is not written yet, I will do it probably later (03.01 17:40)
+```{r}
+
+#calculate md
+subset_pred <- grepl("Deviance", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_rand_mcmc_rep,subset_pred)
+mcmc_subset_dic<- mcmc_subset
+md <- mean(mcmc_subset_dic)
+
+# this version is super slow
+# #calculate pd
+# a <- summary(weibull_rep)
+# a1 <- a[c("beta0","beta1","beta2","scale"),"Mean"]
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(weibull_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(weibull_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(weibull_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("scale", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+a["scale"] <- mean(get_values(weibull_rand_mcmc_rep,subset_pred))
+a1 <- a
+
+subset_pred <- grepl("b0", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+b0_subset1 <- apply(get_values(weibull_rand_mcmc_rep,subset_pred),2,mean)
+#b0_subset1 <- get_values(weibull_rand_mcmc_rep,subset_pred)[728,]
+#since we reordered the ids initially since from small to big sorted
+b0_subset <- b0_subset1[Grub$id]
+#now we can use this values for comparison
+scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group +b0_subset)
+shape <- 1/a1["scale"]
+
+pd <- md - -2*sum(dweibull(Grub$value, scale = scale, shape  = shape, log = T))
+pv <- var(mcmc_subset_dic)/2
+c(pd,md,pd+md)
+c(pv,md,pv+md)
+
+```
+
+
 ## With censored without random effects
 ### Lognormal
 #### Models are calculated
@@ -364,12 +518,18 @@ mcmc_lognorm_cens <- as.mcmc.list(lognorm_cens)
 summary(mcmc_lognorm_cens)
 summary(lognorm_cens)
 
+plot(lognorm_cens)
+print(lognorm_cens)
+ 
+cat("second kind of the plots seen before")
+plot(mcmc_lognorm_cens)
+
 ```
 
 
 #### Diagnostics
 ##### Convergence checks
-First Gelman and Rubin and Geweke Plots are created, therefore we also use coda but that is just a side note.
+
 ```{r}
 print("gelman diag")
 gelman.diag(mcmc_lognorm_cens, confidence = 0.95)
@@ -380,15 +540,32 @@ geweke.plot(mcmc_lognorm_cens)
 ```
 
 ##### DIC
-
+This one is now manually calculated, I am not sure if this way is completly write. 
 ```{r}
+
+# a <- summary(lognorm_cens_rep)
+# a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
+#get all the means of the parameters this is in the calculation of the DIc used look in the formula if there are questions
+
 subset_pred <- grepl("Deviance", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
 mcmc_subset_dic<- mcmc_subset
 md <- mean(mcmc_subset_dic)
 
-a <- summary(lognorm_cens_rep)
-a <- a[c("beta0","beta1","beta2","sigma"),"Mean"]
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["beta0"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["beta2"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["beta1"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
+
+subset_pred <- grepl("sigma", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["sigma"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
+
+
 #there is no real y value therefore again use the simulated ones
 subset_pred <- grepl("y\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
@@ -396,18 +573,23 @@ Grub$sim_value <- apply(mcmc_subset,2,mean)
 #now we cann use this values for comparison
 pd <- md - (-2 *sum(log(dlnorm(Grub$sim_value,a["beta0"]+a["beta1"]*Grub$grubsize 
                    + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+pv <- var(mcmc_subset_dic)/2
 c(pd,md,pd+md)
+c(pv,md,pv+md)
 
 ```
-##### PPO
-PPo or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
+##### CPO
+CPO or better say the inverse of it
+ 
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 
 #2.) extract the res values 
@@ -419,31 +601,52 @@ hist(apply(mcmc_subset,2,mean), breaks = 20)
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+ 
 ```{r}
-plot(lognorm_cens)
-print(lognorm_cens)
-#The DIC Value for model comparison
 
-cat("second kind of the plots seen before")
-plot(mcmc_lognorm_cens)
+
+#"a" is the same as defined for Dic is pretty close in terms of ccalculation
+
+library(ggplot2)
+#Estimation of the regression means but there could be otber ways to get this done first calculate in any itteration then mean
+# not the same since size effect is not linear on value
+
+#group 1
+size <- seq(-2,4,by = 0.1)
+est_live_gr1 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["sigma"]))
+#group 2 beta 2 is the group
+est_live_gr2 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["sigma"]))
+
+subset_pred <- grepl("y\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+mcmc_subset_y <- get_values(lognorm_cens_rep_mcmc,subset_pred)
+predicted_df <- data.frame(size = size, live1 = est_live_gr1,live2 = est_live_gr2)
+
+ggplot(Grub, aes(y = mcmc_subset_y[10,], x = grubsize, colour = as.factor(group))) + geom_point()+geom_line(color='red',data = predicted_df, aes(x=size, y=live1)) +
+  geom_line(color='green',data = predicted_df, aes(x=size, y=live2))
+
+
 ```
 ### Weibull
 
 ```{r  echo=F}
 source("Bayes1_Weibull_cens_jags.R")
-
 ```
 
 
 #### Results 
 
 ```{r}
-#coda integration so also coda stuff is available
-#Model Diagnostik plots
 
 summary(weibull_cens_mcmc)
 summary(weibull_cens)
+
+plot(weibull_cens)
+ 
+
+cat("second kind of the plots seen before")
+plot(weibull_cens_mcmc)
+
+
 ```
 #### Diagnostics
 ##### Convergence checks
@@ -463,44 +666,85 @@ geweke.plot(weibull_cens_mcmc)
 ##### DIC
 
 ```{r}
+# 
+# a <- summary(weibull_cens_rep_mcmc)
+# a1 <- a$statistics[c("beta0","beta1","beta2","scale"),"Mean"]
 subset_pred <- grepl("Deviance", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
 md <- mean(mcmc_subset)
+pv <- var(mcmc_subset)/2
 
-a <- summary(weibull_cens_rep_mcmc)
-a1 <- a$statistics[c("beta0","beta1","beta2","scale"),"Mean"]
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+a["beta0"] <- mean(get_values(weibull_cens_rep_mcmc,subset_pred))
 
+subset_pred <- grepl("beta2", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+a["beta2"] <- mean(get_values(weibull_cens_rep_mcmc,subset_pred))
 
-#there is no real y value therefore again use the simulated ones
+subset_pred <- grepl("beta1", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+a["beta1"] <- mean(get_values(weibull_cens_rep_mcmc,subset_pred))
+
+subset_pred <- grepl("scale", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+a["scale"] <- mean(get_values(weibull_cens_rep_mcmc,subset_pred))
+a1 <- a
+
+#there is no real y value therefore again use the simulated ones and their mean, may be first always calculate DIC and then
+#use mean implement also if there is still time. But this for of calculation makes more sense for me right now, since if we do something with the model we would often use the mean. But the other one ofc makes also quite some sense
+
 subset_pred <- grepl("y\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
 Grub$sim_value <- apply(mcmc_subset,2,mean)
-#now we cann use this values for comparison
+#now we can use this values for comparison
 scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group)
 #for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
 shape <- 1/a1["scale"]
 pd <- md - -2*sum(dweibull(Grub$sim_value, scale = scale, shape  = shape, log = T))
+
 c(pd,md,pd+md)
 
+c(pv,md,pv+md)
+
 ```
-##### PPO
+##### CPO
 
 ```{r}
-subset_pred <- grepl("ppo\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
+subset_pred <- grepl("ppo\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+ 
 ```{r}
-plot(weibull_cens)
-#The DIC Value for model comparison
+# how extreme are the predicted values compared to the original ones
+subset_pred <- grepl("y_rep\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
 
-cat("second kind of the plots seen before")
-plot(weibull_cens_mcmc)
+# p values not interpretable since not all observation even "have the abbility" to be so extreme, so it is even more
+# frightening to find so big differences. This is probably not the best use of PPC in the case that every observations, basically has a different distribution 
+
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+
+# how extreme is the CPO compared to the original one
+# cpo in the repeated case is much smaller than in the former case
+subset_pred <- grepl("ppo_rep\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
+biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest_rep)
+order(biggest_rep,decreasing = T)
+sort(biggest_rep, decreasing = T)[1:3]
+Grub$id[c(106,43,131)]
+
+
+
+
 ```
 
 ## Without censored with random effects
@@ -513,13 +757,14 @@ source("Bayes1_lognormal_cens_Random_jags.R")
 #### Results 
 
 ```{r}
-#coda integration so also coda stuff is available
-#Model Diagnostik plots
-lognorm_rand_cens_mcmc <- as.mcmc.list(lognorm_rand_cens)
-
 summary(lognorm_rand_cens_mcmc)
 summary(lognorm_rand_cens)
+plot(lognorm_rand_cens)
+print(lognorm_rand_cens)
+ 
 
+cat("second kind of the plots seen before")
+plot(lognorm_rand_cens_mcmc)
 ```
 
 
@@ -536,56 +781,112 @@ geweke.plot(lognorm_rand_cens_mcmc)
 ```
 
 ##### DIC
-
+Still to do
 ```{r}
+subset_pred <- grepl("Deviance", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
+md <- mean(mcmc_subset)
+
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("sigma", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+a["sigma"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
+a1 <- a
+
+subset_pred <- grepl("b0", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+b0_subset1 <- apply(get_values(lognorm_rand_cens_mcmc_rep,subset_pred),2,mean)
+#since we reordered the ids initially since from small to big sorted
+b0_subset <- b0_subset1[Grub$id]
+
+#there is no real y value therefore again use the simulated ones and their mean, may be first always calculate DIC and then
+#use mean implement also if there is still time. But this for of calculation makes more sense for me right now, since if we do something with the model we would often use the mean. But the other one ofc makes also quite some sense
+subset_pred <- grepl("y\\[", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+mcmc_subset_y <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
+
+Grub$sim_value <- apply(mcmc_subset_y,2,mean)
+
+pd <- md - (-2 *sum(log(dlnorm(Grub$sim_value,a["beta0"]+a["beta1"]*Grub$grubsize 
+                   + a["beta2"]*Grub$group + b0_subset,sqrt(1/a["sigma"])))))
+
+pv <- var(mcmc_subset)/2
+
+c(pd,md,pd+md)
+c(pv, md,pv+md)
 ```
-##### PPO
-PPo or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
+##### CPO
+CPO or better say the inverse of it
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
-
-
-
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
 
 ```
 
 ##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
-```{r}
-plot(lognorm_rand_cens)
-print(lognorm_rand_cens)
-#The DIC Value for model comparison
-
-cat("second kind of the plots seen before")
-plot(lognorm_rand_cens_mcmc)
-```
-
-##### deal with correlation
+ 
 ```{r}
 
-```
+# how extreme are the predicted values compared to the original ones
+subset_pred <- grepl("y_rep\\[", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
 
+# p values not interpretable since not all observation even "have the abbility" to be so extreme, so it is even more
+# frightening to find so big differences. This is probably not the best use of PPC in the case that every observations, basically has a different distribution 
+
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+
+# how extreme is the CPO compared to the original one
+# cpo in the repeated case is much smaller than in the former case
+subset_pred <- grepl("ppo_rep\\[", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
+biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest_rep)
+print(as.vector(order(biggest_rep,decreasing = T)))
+print("")
+
+sort(biggest_rep, decreasing = T)[1:3]
+```
+##### PPC Random Effect Intercept
+
+```{r}
+mean(get_values(lognorm_rand_cens_mcmc_rep,"tmax.test"))
+mean(get_values(lognorm_rand_cens_mcmc_rep,"tmin.test"))
+mean(get_values(lognorm_rand_cens_mcmc_rep,"ks.test"))
+mean(get_values(lognorm_rand_cens_mcmc_rep,"ss.test"))
+```
 ### Weibull
 
 ```{r  echo=F}
 source("Bayes1_Weibull_cens_Random_jags.R")
-
 ```
 
 #### Results 
 
 ```{r}
-#coda integration so also coda stuff is available
-#Model Diagnostik plots
 weibull_cens_rand_mcmc <- as.mcmc.list(weibull_cens_rand)
 
 summary(weibull_cens_rand_mcmc)
 summary(weibull_cens_rand)
+plot(weibull_cens_rand)
+ 
+cat("second kind of the plots seen before")
+plot(weibull_cens_rand_mcmc)
+
 ```
 #### Diagnostics
 ##### Convergence checks
@@ -605,43 +906,100 @@ geweke.plot(weibull_cens_rand_mcmc)
 ##### DIC
 
 ```{r}
-extract.runjags(weibull_cens_rand, "dic")
+subset_pred <- grepl("Deviance", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rand_mcmc_rep,subset_pred)
+md <- mean(mcmc_subset)
+
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(weibull_cens_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(weibull_cens_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(weibull_cens_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("scale", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+a["scale"] <- mean(get_values(weibull_cens_rand_mcmc_rep,subset_pred))
+a1 <- a
+
+subset_pred <- grepl("b0", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+b0_subset1 <- apply(get_values(weibull_cens_rand_mcmc_rep,subset_pred),2,mean)
+#since we reordered the ids initially since from small to big sorted
+b0_subset <- b0_subset1[Grub$id]
+#there is no real y value therefore again use the simulated ones and their mean, may be first always calculate DIC and then
+#use mean implement also if there is still time. But this for of calculation makes more sense for me right now, since if we do something with the model we would often use the mean. But the other one ofc makes also quite some sense
+subset_pred <- grepl("y\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+mcmc_subset_y <- get_values(weibull_cens_rep_mcmc,subset_pred)
+
+Grub$sim_value <- apply(mcmc_subset_y,2,mean)
+
+#now we can use this values for comparison
+#for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
+scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group +b0_subset )
+shape <- 1/a1["scale"]
+
+pd <- md - (-2*sum(dweibull(Grub$sim_value , scale = scale, shape  = shape, log = T)))
+
+pv <- var(mcmc_subset)/2
+
+c(pd,md,pd+md)
+c(pv, md,pv+md)
 ```
-##### PPO
-PPO or better say the inverse of it
-Furthermore some average residual plots are made (could should be normal)
+##### CPO
+CPO or better say the inverse of it
+ 
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(weibull_cens_rand_mcmc_rep,subset_pred)
-#ppo which are now far of?
-plot(1/apply(as.matrix(mcmc_subset),2,mean))
 
+#cpo which are now far of?
+biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest)
+#which y are thebiggest
+order(biggest,decreasing = T)
+sort(biggest, decreasing = T)[1:3]
+Grub$id[c(139,138,140)]
 ```
 
-##### PPC and more summary
-some PPC and more summary, for now instead manual calcualtion of DIC is included here, should be changed in the future.
+##### PPC and more summary without random intercept
+ 
 ```{r}
-plot(weibull_cens_rand)
-#The DIC Value for model comparison
 
-cat("second kind of the plots seen before")
-plot(weibull_cens_rand_mcmc)
+# how extreme are the predicted values compared to the original ones
+subset_pred <- grepl("y_rep\\[", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rand_mcmc_rep,subset_pred)
+
+# p values not interpretable since not all observation even "have the abbility" to be so extreme, so it is even more
+# frightening to find so big differences. This is probably not the best use of PPC in the case that every observations, basically has a different distribution 
+
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+
+# how extreme is the CPO compared to the original one
+# cpo in the repeated case is much smaller than in the former case
+subset_pred <- grepl("ppo_rep\\[", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rand_mcmc_rep,subset_pred)
+biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+plot(biggest_rep)
+order(biggest_rep,decreasing = T)
+sort(biggest_rep, decreasing = T)[1:3]
+Grub$id[c(35,133,119)]
 ```
 
 ##### PPC Random Effect Intercept
 
 ```{r}
-summary_weibull <- summary(weibull_cens_rand_mcmc_rep)
-b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
+# summary_weibull <- summary(weibull_cens_rand_mcmc_rep)
+# b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
 #mean(b_params[1:10,1])
 #attributes(summary_weibull$statistics)
 #how unnormal the random effects
 mean(get_values(weibull_cens_rand_mcmc_rep,"tmax.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"tmin.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"ks.test"))
-
-
-
+mean(get_values(weibull_cens_rand_mcmc_rep,"ss.test"))
 ```
-

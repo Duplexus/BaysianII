@@ -63,6 +63,7 @@ model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dweib(k, invlambda[i])
+    y_rep[i] ~ dweib(k, invlambda[i])
     invlambda[i] <- pow(t[i], k)
     t[i] <- exp(-h[i])
     h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
@@ -70,6 +71,7 @@ model.function <- "model{
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i, ])
     y[i] ~ dweib(k, invlambda[i])
+    y_rep[i] ~ dweib(k, invlambda[i])
     invlambda[i] <- pow(t[i], k)
     t[i] <- exp(-h[i])
     h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
@@ -82,13 +84,14 @@ model.function <- "model{
   beta2 ~ dnorm(0,0.000001)
   for (i in 1:(N1+N2)){
     ppo[i] <- dweib(y[i],k, invlambda[i])
+    ppo_rep[i] <- dweib(y_rep[i],k, invlambda[i])
     #for DIC
     D[i] <- -2*log(dweib(y[i],k, invlambda[i]))
   }
   Deviance <- sum(D[])
 }"
 
-parameters <-c("beta0", "beta1", "beta2", "invlambda","scale","ppo","Deviance","y")
+parameters <-c("ppo_rep","y_rep","beta0", "beta1", "beta2", "invlambda","scale","ppo","Deviance","y")
 weibull_cens_rep <- run.jags(model = model.function,
                           monitor = parameters, data = model.data,
                           inits = model.inits, burnin = 2000,

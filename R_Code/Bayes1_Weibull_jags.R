@@ -43,12 +43,14 @@ weibull <- run.jags(model = model.function,
 # #k = 1.6
 # Weibull_summary <- summary(weibull_2)
 # Weibull_summary$statistics
+weibull_mcmc <- as.mcmc.list(weibull)
 
 
 
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dweib(k, invlambda[i])
+    y_rep[i] ~ dweib(k, invlambda[i])
     invlambda[i] <- pow(t[i], k)
     t[i] <- exp(-h[i])
     h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
@@ -69,7 +71,8 @@ model.function <- "model{
   Deviance <- sum(D[])
 }"
 
-parameters <-c("beta0", "beta1", "beta2", "invlambda","scale","ppo","Deviance")
+parameters <-c("beta0", "beta1", "beta2", "invlambda","scale","ppo","Deviance"
+               ,"y_rep")
 weibull_rep <- run.jags(model = model.function,
                           monitor = parameters, data = model.data,
                           inits = model.inits, burnin = 2000,
@@ -82,11 +85,11 @@ weibull_mcmc_rep <- as.mcmc.list(weibull_rep)
 
 
 
-
-
-#parametric 
-library(survival)
-estimates <- survreg(Surv(value) ~ grubsize +  group, Grub, dist = "weibull")
-estimates
-1/0.62 # same in the weibull case if you flip the sign
-Weibull_summary$statistics
+# 
+# 
+# #parametric 
+# library(survival)
+# estimates <- survreg(Surv(value) ~ grubsize +  group, Grub, dist = "weibull")
+# estimates
+# 1/0.62 # same in the weibull case if you flip the sign
+# Weibull_summary$statistics

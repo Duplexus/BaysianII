@@ -1,16 +1,20 @@
 model
 {
-    for (i in 1:N) {
-        y[i] ~ dlnorm(mu[i], sigma)
+    for (i in 1:N1) {
         mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i] + b0[id[i]]
-        predict[i] ~ dlnorm(mu[i], sigma)
+        y[i] ~ dlnorm(mu[i], sigma)
     }
-    sigma ~ dunif(0.1, 100)
+    for (i in (N1 + 1):(N1 + N2)) {
+        mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i] + b0[id[i]]
+        y[i] ~ dlnorm(mu[i], sigma)
+    }
+    sigma ~ dgamma(0.01, 0.01)
+    tau_b0 <- 1/sigma_b0
+    sigma_b0 ~ dunif(0.00000E+00, 100)
     beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
     beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
     for (i in 1:Nsubj) {
-        b0[i] ~ dnorm(0.00000E+00, 1.00000E-04)
-        b0.rep[i] ~ dnorm(0.00000E+00, 1.00000E-04)
+        b0[i] ~ dnorm(0.00000E+00, tau_b0)
     }
 }

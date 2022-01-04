@@ -3,7 +3,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 library(coda)
 library(R2OpenBUGS)
-
+library(tidyverse)
 
 
 
@@ -55,7 +55,7 @@ model.function <- function(){
   }
 }
 write.model(model.function, "Scripts\\Bayes1_lognormal_Random.txt")
-model.inits <- function(){list(sigma=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)), predict = c(rep(NA,times = 140)) )}
+model.inits <- function(){list(sigma=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)), predict = Grub$lowerlim+1 )}
 parameters = c("sigma", "beta2", "beta0", "beta1", "b0")
 
 

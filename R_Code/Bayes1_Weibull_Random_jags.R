@@ -17,23 +17,24 @@ model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dweib(k, invlambda[i])
-    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
-    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
+    invlambda[i] <- pow(t[i], k)
+    t[i] <- exp(-h[i])
+    h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
   }
   #priors
+  tau_b0 <- 1/sigma_b0
+  sigma_b0 ~ dunif(0,100)
   k ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
-  sigma ~ dunif(0,100)
   beta2 ~ dnorm(0,0.000001)
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
-    b0_rep[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
+     b0[i] ~ dnorm(0,tau_b0)
   }
 }"
 
 #Monitored Variables
-parameters <- c("k", "sigma", "beta2", "beta0", "beta1","b0", "b0_rep")
+parameters <- c("k", "sigma", "beta2", "beta0", "beta1","b0", "b0_rep","sigma_b0","y_sim")
 #parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
 
 model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
@@ -49,17 +50,9 @@ weibull_rand <- run.jags(model = model.function,
                     inits = model.inits, burnin = 2000,
                     sample = 5000, thin = 1, n.chains = 2)
 
+weibull_rand_mcmc <- as.mcmc.list(weibull_rand)
 
-plot(weibull_rand)
-# 
-# Weibull_bayes <- read.bugs(model.out)
-# 
-# summary_weibull <- summary(Weibull_bayes)
-# b_params <- summary_weibull$statistics[grepl("b0\\[", dimnames(summary_weibull$statistics)[[1]]),]
-# mean(b_params[1:10,1])
-# attributes(summary_weibull$statistics)
-# 
-# 
+
 #####With Simulation of PPC####
 #Bayes1_Weibull_random.r
 
@@ -67,27 +60,36 @@ plot(weibull_rand)
 model.function <- "model{
   for (i in 1:N){
     y[i] ~ dweib(k, invlambda[i])
-    #log(invlambda[i]) <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
-    log(invlambda[i]) <- beta1 *x1[i] + b0[id[i]]
+    y_rep[i] ~ dweib(k, invlambda[i])
+   invlambda[i] <- pow(t[i], k)
+    t[i] <- exp(-h[i])
+    h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
+    #to generate the expected residuals
+    y_sim[i] ~ dweib(k, invlambda[i])
+    res[i] <- y[i] - y_sim[i]
   }
   #priors
+  tau_b0 <- 1/sigma_b0
+  sigma_b0 ~ dunif(0,100)
+  #close to dgamma(1,0.000001) in bugs
   k ~ dunif(0,100)
+  scale <- 1/k
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)
-  sigma ~ dunif(0,100)  
     
     for (i in 1:N){
     ppo[i] <- dweib(y[i],k, invlambda[i])
-  }
+    ppo_rep[i] <- dweib(y_rep[i],k, invlambda[i])
+    D[i] <- -2*log(dweib(y[i],k, invlambda[i]))
+    }
+  Deviance <- sum(D[])
   for ( i in 1:Nsubj){
-    b0[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
-    b0_rep[i] ~ dnorm(mean(beta0 + beta2 *x2[i:(i+6)]) ,sigma)
-    #mu_gr[i] <- mean(beta0 + beta1 *x1[i] + beta2 *x2[i])
-    #b0_rep[i]~ dnorm(0,sigma)
+    b0[i] ~ dnorm(0,tau_b0)
+    b0_rep[i] ~ dnorm(0,tau_b0)
     
     
-    # Ranked thetas
+    # Ranked thetas also for PPC
     rank_b01[i,1:Nsubj] <- sort(b0[1:Nsubj])
     rank_b0[i] <- rank_b01[i,i]
     rank_b0_rep1[i,1:Nsubj]  <- sort(b0_rep[1:Nsubj])
@@ -121,9 +123,20 @@ model.function <- "model{
   ks.rep2 <- ks.rep[Nsubj]
 
   ks.test <- step(ks.rep2-ks)
+  # Sinharay and Stern test
+  #hard coding since we have 20 random effects this is fine
+  nmed <- round(20/2)
+  tmed1 <- sort(b0[])
+  tmed <- tmed1[nmed]
+  tmed.rep1 <- sort(b0_rep[])
+  tmed.rep <- tmed1[nmed]
 
+  ss <- abs(tmax-tmed)-abs(tmin-tmed)
+  ss.rep <-abs(tmax.rep-tmed.rep)-abs(tmin.rep-tmed.rep)
+  ss.test <- step(ss.rep-ss) 
 }"
-parameters = c("ppo","k", "beta2", "beta0","sigma", "b0_rep", "beta1", "b0","tmin.test","tmax.test","ks.test", "sigma")
+parameters = c("ppo_rep","y_rep","res","ppo","k", "beta2", "beta0", "scale", "Deviance",
+               "sigma", "b0_rep", "beta1", "b0","tmin.test","tmax.test","ks.test", "sigma","ss.test")
 
 
 weibull_rand_rep <- run.jags(model = model.function,

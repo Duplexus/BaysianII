@@ -6,4 +6,6 @@
 *.fatbin
 .Rproj.user
 *.Rhistory
-*.RDataTmp
+*.RDataTmp*
+*.RData
+*.Rhistory
