@@ -6,13 +6,15 @@ library("rjags")
 Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
 #attributes(Grub$grubsize) <- NULL
 
+
 #DEFINE INTITIAL VALUES
-model.inits <- list(list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 ),
-                    list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 )
+model.inits <- list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1 ),
+                    list(tau=20, beta0=10, beta1 = 10,beta2 = 10 ),
+                    list(tau=15, beta0=20, beta1 = -10,beta2 = -15 )
                     )
 
 #Monitored Variables
-parameters <-c("beta0", "beta1", "beta2", "sigma")
+parameters <-c("beta0", "beta1", "beta2", "sigma","tau")
 
 
 
@@ -27,11 +29,12 @@ model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
 # Specification data model
 model.function <- "model{
   for (i in 1:N){
-    y[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
   }
   #priors
-  sigma ~ dgamma(0.001, 0.001)
+  tau ~ dgamma(0.001, 0.001)
+  sigma <- sqrt(1/tau)
   beta0 ~ dnorm(0,0.001)
   beta1 ~ dnorm(0,0.001)
   beta2 ~ dnorm(0,0.001)
@@ -43,7 +46,7 @@ runjags.options(method = "rjparallel")
 lognorm <- run.jags(model = model.function,
                      monitor = parameters, data = model.data,
                      inits = model.inits, burnin = 2000,
-                     sample = 5000, thin = 1, n.chains = 2)
+                     sample = 5000, thin = 1, n.chains = 3)
 lognorm_mcmc <- as.mcmc.list(lognorm)
     # ####If not used in Master decomment once####
     # #Model Diagnostics and so on 
@@ -71,31 +74,33 @@ lognorm_mcmc <- as.mcmc.list(lognorm)
 ####Model Disagnostics and PPC####
 model.function <- "model{
   for (i in 1:N){
-    y[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
-    y_rep[i] ~ dlnorm(mu[i], sigma)
+    y_rep[i] ~ dlnorm(mu[i], tau)
   }
   #priors
-  sigma ~ dgamma(0.001, 0.001)
+  tau ~ dgamma(0.001, 0.001)
+  sigma <- sqrt(1/tau)
   beta0 ~ dnorm(0,0.001)
   beta1 ~ dnorm(0,0.001)
   beta2 ~ dnorm(0,0.001)
   #ppc look on residuals
   for (i in 1:N){
-    ppo[i] <- dlnorm(y[i],mu[i],sigma)
-    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],sigma)
+    ppo[i] <- dlnorm(y[i],mu[i],tau)
+    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],tau)
     k[i] <- log(y[i])
     res[i] <- k[i] - mu[i]
     #for DIC
-    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
+    D[i] <- -2*log(dlnorm(y[i],mu[i], tau))
   }
   Deviance <- sum(D[])
 }"
-parameters <-c("ppo_rep","beta0", "beta1", "beta2", "sigma","ppo","res","mu","Deviance","y_rep")
+parameters <-c("ppo_rep","beta0", "beta1", "beta2", "sigma","ppo","res","mu",
+               "Deviance","y_rep","tau")
 lognormal_rep <- run.jags(model = model.function,
                       monitor = parameters, data = model.data,
                       inits = model.inits, burnin = 2000,
-                      sample = 5000, thin = 10, n.chains = 2)
+                      sample = 5000, thin = 10, n.chains = 3)
 lognorm_mcmc_rep <- as.mcmc.list(lognormal_rep)
 
 

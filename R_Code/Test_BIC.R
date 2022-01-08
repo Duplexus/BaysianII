@@ -4,8 +4,8 @@ library("runjags")
 library("coda")
 library("rjags")
 set.seed(1341234234)
-x <- runif(200,0,10)
-y <- x + rnorm(200,0,5)
+x <- runif(100,0,10)
+y <- x + rnorm(100,0,5)
 
 model.data <- list( y = y, N = length(y), x1 = x)
 #DEFINE INTITIAL VALUES
@@ -13,7 +13,7 @@ model.inits <- list(list(sigma=2, beta0=1, beta1 = 1),
                     list(sigma=2, beta0=1, beta1 = 1)
 )
 #Monitored Variables
-parameters <-c("beta0", "beta1", "sigma","Devi","D2evi")
+parameters <-c("beta0", "beta1", "sigma","Devi","D2evi","ppo","ppo2")
 #sigma is variance
 
 model.function <- "model{
@@ -21,7 +21,9 @@ model.function <- "model{
     y[i] ~ dnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i]
      D[i] <- - log(tau) + log(2*3.14159265358979) + pow(y[i]-mu[i],2)*tau
-     D2[i] <- log(dnorm(y[i],mu[i],tau))
+     D2[i] <- -2*log(dnorm(y[i],mu[i],tau))
+     ppo[i] <- - log(tau) + log(2*3.14) + pow(y[i]-mu[i],2)*tau
+     ppo2[i] <- -2*log(dnorm(y[i],mu[i],tau))
   }
   #priors
   Devi <- sum(D[])
@@ -40,6 +42,9 @@ Model_test <- run.jags(model = model.function,
                       monitor = parameters, data = model.data,
                       inits = model.inits, burnin = 2000,
                       sample = 5000, thin = 1, n.chains = 2)
+mcmc_rep <- as.mcmc.list(Model_test)
+summary(mcmc_rep)
+
 plot(Model_test)
 print(Model_test)
 #The DIC Value for model comparison
@@ -47,8 +52,28 @@ dic_val <- extract.runjags(Model_test, "dic")
 dic_val
 
 
+subset_pred <- grepl("ppo\\[", dimnames(mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(mcmc_rep,subset_pred)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+barplot(icpo)
 
-mcmc_rep <- as.mcmc.list(Model_test)
+subset_pred <- grepl("ppo2\\[", dimnames(mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(mcmc_rep,subset_pred)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+barplot(icpo)
+
+
+
 subset_pred <- grepl("Devi", dimnames(mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(mcmc_rep,subset_pred)
 mean(mcmc_subset)
@@ -67,6 +92,13 @@ dic_val
 #ist ja auch totaler quatsch, musste ja innerhalb jeder Periode berechnet
 #werden um sinnvoll zu sein.
 0.5 * var(mcmc_subset2)
+set.seed(100)
+y <- 4
+mu <- 3
+tau <- 1/2
+- log(tau) + log(2*3.14159265358979) + pow(y - mu ,2)*tau
 
+- log(tau) + log(2*3.14159265358979) + ((y - mu)^2)*tau
 
+-2*log(dnorm(y,mu,sqrt(1/tau)))
 

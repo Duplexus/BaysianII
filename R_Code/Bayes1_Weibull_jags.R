@@ -25,9 +25,12 @@ model.function <- "model{
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)
 }"
-model.inits <- list(list(k =3, beta0=1, beta1 = 1,beta2 = 1 ),
-                    list(k =3, beta0=1, beta1 = 1,beta2 = 1 )
+
+model.inits <- list(list(k=3, beta0=1, beta1 = 1,beta2 = 1 ),
+                    list(k=1, beta0=10, beta1 = 10,beta2 = 10 ),
+                    list(k=0.5, beta0=20, beta1 = -10,beta2 = -15 )
 )
+
 
 #Monitored Variables
 parameters <-c("beta0", "beta1", "beta2","scale")
@@ -36,8 +39,8 @@ runjags.options(method = "rjparallel")
 #Set Up Model
 weibull <- run.jags(model = model.function,
                     monitor = parameters, data = model.data,
-                    inits = model.inits, burnin = 2000,
-                    sample = 5000, thin = 1, n.chains = 2)
+                    inits = model.inits, burnin = 5000,
+                    sample = 10000, thin = 1, n.chains = 3)
 
 # weibull_2 <- as.mcmc.list(weibull)
 # #k = 1.6
@@ -75,8 +78,8 @@ parameters <-c("beta0", "beta1", "beta2", "invlambda","scale","ppo","Deviance"
                ,"y_rep")
 weibull_rep <- run.jags(model = model.function,
                           monitor = parameters, data = model.data,
-                          inits = model.inits, burnin = 2000,
-                          sample = 5000, thin = 1, n.chains = 2)
+                          inits = model.inits, burnin = 5000,
+                          sample = 10000, thin = 1, n.chains = 3)
 
 weibull_mcmc_rep <- as.mcmc.list(weibull_rep)
 

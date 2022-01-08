@@ -22,31 +22,35 @@ model.data <- list(y = Grub$value2, z = Grub$state, N1 = length_Upper,N2 = lenng
                     x2 = Grub$group, lims = cbind(Grub$lowerlim,Grub$upperlim))
 
 
-model.inits <- list(list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 ),list(sigma=2, beta0=1, beta1 = 1,beta2 = 1 ))
-parameters <-c("beta0", "beta1", "beta2", "sigma")
+model.inits <- list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1 ),
+                    list(tau=20, beta0=10, beta1 = 10,beta2 = 10 ),
+                    list(tau=40, beta0=-100, beta1 = 100,beta2 = -30 )
+)
+parameters <-c("beta0", "beta1", "beta2", "tau","sigma")
 model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i, ])
-    y[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
     #for DIC
-    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
+    D[i] <- -2*log(dlnorm(y[i],mu[i], tau))
   }
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i,])
-    y[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
   }
   #priors
-  sigma ~ dgamma(0.001, 0.001)
-  beta0 ~ dnorm(0,0.000001)
-  beta1 ~ dnorm(0,0.000001)
-  beta2 ~ dnorm(0,0.000001)
+  tau ~ dgamma(0.001, 0.001)
+  sigma <- sqrt(1/tau)
+  beta0 ~ dnorm(0,0.001)
+  beta1 ~ dnorm(0,0.001)
+  beta2 ~ dnorm(0,0.001)
 }"
 runjags.options(method = "rjparallel")
 lognorm_cens <- run.jags(model = model.function,
                       monitor = parameters, data = model.data,
-                      inits = model.inits, burnin = 1000, sample = 10000, thin = 1, n.chains = 2
+                      inits = model.inits, burnin = 1000, sample = 10000, thin = 1, n.chains = 3
                       , progress.bar = "text")
 lognorm_cens_mcmc <- as.mcmc.list(lognorm_cens)
 
@@ -73,40 +77,41 @@ lognorm_cens_mcmc <- as.mcmc.list(lognorm_cens)
 model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i, ])
-    y[i] ~ dlnorm(mu[i], sigma)
-    y_rep[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
+    y_rep[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
     #for DIC
-    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
+    D[i] <- -2*log(dlnorm(y[i],mu[i], tau))
   }
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i,])
-    y[i] ~ dlnorm(mu[i], sigma)
-    y_rep[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
+    y_rep[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]
     #for DIC
-    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
+    D[i] <- -2*log(dlnorm(y[i],mu[i], tau))
   }
   Deviance <- sum(D[])
   #priors
-  sigma ~ dgamma(0.001, 0.001)
+  tau ~ dgamma(0.001, 0.001)
+  sigma <- sqrt(1/tau)
   beta0 ~ dnorm(0,0.000001)
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)
     #ppc look on residuals
   for (i in 1:(N1+N2)){
-    ppo[i] <- dlnorm(y[i],mu[i],sigma)
-    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],sigma)
+    ppo[i] <- dlnorm(y[i],mu[i],tau)
+    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],tau)
     k[i] <- log(y[i])
     res[i] <- k[i] - mu[i]
   }
 }"
 runjags.options(method = "rjparallel")
-parameters <-c("y_rep","beta0", "beta1", "beta2", "sigma","ppo","res","mu",
-               "Deviance","y")
+parameters <-c("y_rep","beta0", "beta1", "beta2", "tau","ppo","res","mu",
+               "Deviance","y","sigma")
 lognorm_cens_rep <- run.jags(model = model.function,
                          monitor = parameters, data = model.data,
-                         inits = model.inits, burnin = 2000, sample = 5000, thin = 1, n.chains = 2
+                         inits = model.inits, burnin = 2000, sample = 5000, thin = 1, n.chains = 3
                          , progress.bar = "text")
 lognorm_cens_rep_mcmc <- as.mcmc.list(lognorm_cens_rep)
 

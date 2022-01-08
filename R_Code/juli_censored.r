@@ -26,7 +26,7 @@ time
 
 
 model.data <- list(
-  x = cbind(data$GROUP, data$GRUBSIZE), y = time, right_censored = right_censored,
+  x = cbind(data$GROUP, scale(data$GRUBSIZE)), y = time, right_censored = right_censored,
   interval_censored = interval_censored, is.censored = is.censored, cens = cens
 )
 

@@ -18,7 +18,10 @@ data1["MIDLIM"] <- apply(data1[c('LOWERLIM','UPPERLIM')], 1, mean)
 data1
 
 data1['Center_size'] = data1['GRUBSIZE'] - apply(data1['GRUBSIZE'], 2, mean)  
+data1['Center_size']  = data1['Center_size'] / sd(as.vector(as.numeric(unlist(data1['Center_size']))))
+#data1['Center_size'] <- data1['Center_size'] *100
 
+#cbind(data1["Center_size"],data2,data2*sd(as.vector(as.numeric(unlist(data1['Center_size'])))))
 #############################################
 # 1 - Median death time per EPN
 #############################################
@@ -222,7 +225,7 @@ set.seed(420)
   # Generate MCMC samples
   out <- coda.samples(jags,
                       c('beta1', 'beta2', 'sigma', 'sigma_b0'),
-                      n.iter = 60000, thin=10)
+                      n.iter = 6000, thin=10)
   plot(out)
   
   # Posterior distributions
@@ -300,7 +303,7 @@ set.seed(420)
   which.max(icpo[-which.max(icpo)])
   icpo[64]
   icpo[57]
-  
+  geweke.plot(out,confidence = 0.95)
   # observations 57 and 64 are outliers
   
   
@@ -309,9 +312,9 @@ set.seed(420)
 #############################################
   
   set.seed(420)
-  
+  data1['Center_size'] <- data1['Center_size'] *0.27
   model.data <- list(
-    id = data1$UREPID, x = cbind(data1$GROUP,data1$GRUBSIZE), y = log(data1$MIDLIM),
+    id = data1$UREPID, x = cbind(data1$GROUP,data1['Center_size']), y = log(data1$MIDLIM),
     N = nrow(data1),  M = 20
   )
   
@@ -356,7 +359,7 @@ set.seed(420)
   
   # Generate MCMC samples
   out <- coda.samples(jags,
-                      c('b0'),
+                      c('b0',"beta0","beta1","beta2"),
                       n.iter = 60000, thin=10)
   
   

@@ -18,15 +18,44 @@ set.seed(8928612)
 ```
 # Introduction
 ## Some Data Summary Statistics
-
+### Survival functions
 Here I just Plot the survival functions, once for both groups together and once seperated
 ```{r}
 plot(survfit(Surv(value) ~ 1, data = Grub), 
-     xlab = "Days", 
+     xlab = "Days", lwd = 3, cex.lab = 2,
      ylab = "Overall survival probability",conf.int = F,col = 2)
 plot(survfit(Surv(value) ~ group, data = Grub), 
-     xlab = "Days", 
-     ylab = "Overall survival probability per group",conf.int = F,col = c(1,2))
+     xlab = "Days", cex.lab = 2,
+     ylab = "Overall survival probability",lwd = 3,
+     conf.int = F,col = c(2,3))
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3),
+               title = "Groups")
+
+pdf("..\\graphics\\Plot1.pdf", width = 7, height = 5)
+plot(survfit(Surv(value) ~ 1, data = Grub), 
+     xlab = "Days",cex.lab = 2, cex.axis = 1.5,
+     ylab = "Overall survival probability",conf.int = F,col = 2, lwd = 3)
+dev.off()
+pdf("..\\graphics\\Plot2.pdf", width = 7, height = 5)
+plot(survfit(Surv(value) ~ group, data = Grub), 
+     xlab = "Days", cex.lab = 2,cex.axis = 1.5,
+     ylab = "Overall survival probability",lwd = 3,
+     conf.int = F,col = c(2,3))
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3), cex = 2,
+               title = "Groups")
+dev.off()
+#first is group 0 second is group 1
+```
+### Median Death times
+Median death time for Group treated with SS is higher than it is the for the HB EPNs therefore this indicates, that we should use HB since, then we are faster with the killing process
+```{r}
+median(Grub$value[Grub$group == 0])
+mean(Grub$value[Grub$group == 0] >= 4)
+median(Grub$value[Grub$group == 1])
+mean(Grub$value[Grub$group == 1] >= 4)
+
 ```
 Different Models
 ## Without censored without random effects
@@ -64,6 +93,25 @@ print("geweke diag")
 geweke.diag(lognorm_mcmc)
 geweke.plot(lognorm_mcmc)
 
+# dynamic geweke for single chain
+gw <- geweke.plot(lognorm_mcmc)
+m <- gw[["z"]][, , 1]
+df <- as.data.frame(m)
+
+names(df)<- c("beta0","beta1","beta2", "sigma")
+it_ini <- 3000
+it_fin <- 5500
+df['m'] = c(1:20)/20*(it_fin-it_ini)+it_ini
+df2 <- data.frame(m = df$m,                            
+                       Z = c(df$beta0, df$beta1, df$beta2, df$sigma),
+                       group = c(rep("beta0", nrow(df)),
+                                 rep("beta1", nrow(df)),
+                                 rep("beta2", nrow(df)),
+                                 rep("sigma", nrow(df))))
+g3<-ggplot(df2, aes(m, Z, col=group))
+g3 + geom_point() + geom_hline(aes(yintercept=2),color="black",linetype="dashed") +
+  geom_hline(aes(yintercept=-2),color="black",linetype="dashed")+
+  labs(title="Geweke diagnostic for chain 1",y="Z-score",x="First iteration in segment")
 ```
 
 ##### DIC
@@ -71,20 +119,30 @@ geweke.plot(lognorm_mcmc)
 ```{r}
 extract.runjags(lognorm, "dic")
 ```
-##### CPO
+##### CPO and PPo
 I always unluckly wrote PPO instead of CPO so it is the same in this document
  
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+
+plot(icpo)
+plot(ippo)
 #which y are thebiggest
-order(biggest,decreasing = T)
+matrix(order(icpo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+#Table 2 
+matrix(order(ippo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
 
 
+LPLM <- mean(log(cpo))
+LPLM
 #2.) extract the res values 
 subset_pred <- grepl("res\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
@@ -123,32 +181,59 @@ This is just for comparison to the automatic calculated one. Used later for the 
 #https://en.wikipedia.org/wiki/Deviance_information_criterion
 
 
-subset_pred <- grepl("Deviance", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-mcmc_subset <- get_values(lognormal_mcmc_rep,subset_pred)
+subset_pred <- grepl("Deviance", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
 mcmc_subset_dic<- mcmc_subset
 md <- mean(mcmc_subset_dic)
 #This is the calculation of Pd but somehow it does not work for the random effectmodels for me, probably I have made some mistake, but I cant find it. So I switch to pv instead, https://www.mrc-bsu.cam.ac.uk/software/bugs/the-bugs-project-dic/ which is also kinda recomended and is the variance of the posterior divided by 2, comes from some chisquare approx. Explaination on the link can be found. First still the implementation of BIC is written down.
 a <- vector()
-subset_pred <- grepl("beta0", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-a["beta0"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+subset_pred <- grepl("beta0", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(lognorm_mcmc_rep,subset_pred))
 
-subset_pred <- grepl("beta2", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-a["beta2"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+subset_pred <- grepl("beta2", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(lognorm_mcmc_rep,subset_pred))
 
-subset_pred <- grepl("beta1", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-a["beta1"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+subset_pred <- grepl("beta1", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(lognorm_mcmc_rep,subset_pred))
 
-subset_pred <- grepl("sigma", dimnames(lognormal_mcmc_rep[[1]])[[2]])
-a["sigma"] <- mean(get_values(lognormal_mcmc_rep,subset_pred))
+subset_pred <- grepl("tau", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["tau"] <- mean(get_values(lognorm_mcmc_rep,subset_pred))
 
 pd <- md - (-2 *sum(log(dlnorm(Grub$value,a["beta0"]+a["beta1"]*Grub$grubsize 
-                   + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+                   + a["beta2"]*Grub$group,sqrt(1/a["tau"])))))
 pv <- var(mcmc_subset_dic)/2
 c(pd,md,pd+md)
 c(pv,md,pv+md)
 
 ```
 
+##### Plot the Model
+```{r}
+#"a" is the same as defined for Dic is pretty close in terms of ccalculation
+
+library(ggplot2)
+#Estimation of the regression means but there could be otber ways to get this done first calculate in any itteration then mean
+# not the same since size effect is not linear on value
+
+#group 1
+size <- seq(-2,4,by = 0.1)
+est_live_gr1 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["sigma"]))
+#group 2 beta 2 is the group
+est_live_gr2 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["sigma"]))
+
+
+```
+##### Sensitivity
+```{r}
+source("Bayes1_lognormal_jags_sens.R")
+
+```
+The results are really simmular despite the second one has a really bad initilitation
+```{r}
+lognorm$summaries[,4]
+lognorm_sens$summaries[,4]
+lognorm_sens2$summaries[,4]
+```
 
 ### Weibull
 #### Models are calculated
@@ -185,7 +270,7 @@ geweke.plot(weibull_mcmc)
 ```{r}
 extract.runjags(weibull, "dic")
 ```
-##### CPO
+##### CPO and PPo
 CPO or better say the inverse of it
  
 
@@ -193,12 +278,22 @@ CPO or better say the inverse of it
 subset_pred <- grepl("ppo\\[", dimnames(weibull_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(weibull_mcmc_rep,subset_pred)
 
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
-#which y are thebiggest
-order(biggest,decreasing = T)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
 
+plot(icpo)
+plot(ippo)
+#which y are thebiggest
+matrix(order(icpo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+#Table 2 
+matrix(order(ippo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+
+LPLM <- mean(log(cpo))
+LPLM
 ```
 
 ##### PPC and more summary
@@ -221,7 +316,7 @@ mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
 ```
 
 ##### DIC Manual
-Again just for comparison. For the random effect this is not written yet, I will do it probably later (03.01 17:40)
+Again just for comparison.
 ```{r}
 
 #calculate md
@@ -257,6 +352,20 @@ c(pd,md,pd+md)
 c(pv,md,pv+md)
 
 ```
+
+##### Sensitivity
+```{r}
+source("Bayes1_weibull_jags_sens.R")
+
+```
+
+
+```{r}
+weibull$summaries[,4]
+weibull_sens$summaries[,4]
+weibull_sens2$summaries[,4]
+```
+
 ## Without censored with random effects
 ### Lognormal
 #### Models are calculated
@@ -264,6 +373,7 @@ c(pv,md,pv+md)
 ```{r echo=F}
 source("Bayes1_lognormal_Random_jags.R")
 ```
+
 #### Results 
 
 ```{r}
@@ -297,18 +407,99 @@ geweke.plot(lognorm_rand_mcmc)
 ```{r}
 extract.runjags(lognorm_rand, "dic")
 ```
-##### CPO
+##### DIC Manual
+```{r}
+subset_pred <- grepl("Deviance", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+md <- mean(mcmc_subset)
+
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+a["beta0"] <- mean(get_values(lognorm_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+a["beta2"] <- mean(get_values(lognorm_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+a["beta1"] <- mean(get_values(lognorm_rand_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("tau", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+a["tau"] <- mean(get_values(lognorm_rand_mcmc_rep,subset_pred))
+a1 <- a
+
+subset_pred <- grepl("b0\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+b0_subset1 <- apply(get_values(lognorm_rand_mcmc_rep,subset_pred),2,mean)
+b0_subset <- b0_subset1[Grub$id]
+
+Grub$sim_value <- Grub$value
+
+pd <- md - (-2 *sum(log(dlnorm(Grub$sim_value,a["beta0"]+a["beta1"]*Grub$grubsize 
+                   + a["beta2"]*Grub$group + b0_subset,sqrt(1/a["tau"])))))
+
+c(pd,md,pd+md)
+
+```
+##### Clustering of repsonses
+
+```{r}
+subset_pred <- grepl("b0\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+#Mean variance of the random effect:
+mean(apply(mcmc_subset,1,var))
+hist(mcmc_subset)
+hist(apply(mcmc_subset,2,mean),breaks = 15)
+#Mean variance of an estimaed random Effect
+mean(apply(mcmc_subset,2,var))
+
+```
+
+##### CPO and PPo
 CPO or better say the inverse of it
  
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+
+barplot(icpo)
+plot(ippo)
 #which y are thebiggest
-order(biggest,decreasing = T)
+matrix(order(icpo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+#Table 2 
+matrix(order(ippo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+
+LPLM <- mean(log(cpo))
+LPLM
+
+
+```
+
+```{r}
+subset_pred <- grepl("ppo2\\[", dimnames(lognorm_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_mcmc_rep,subset_pred)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+
+barplot(icpo)
+plot(ippo)
+#which y are thebiggest
+matrix(order(icpo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+#Table 2 
+matrix(order(ippo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+
+LPLM <- mean(log(cpo))
+LPLM
+
 
 ```
 
@@ -349,6 +540,74 @@ mean(get_values(lognorm_rand_mcmc_rep,"ks.test"))
 mean(get_values(lognorm_rand_mcmc_rep,"ss.test"))
 
 ```
+####Sensitivity Analysis
+We set up t-distributed random effects
+```{r  echo=F}
+source("Bayes1_lognormal_Random_student_t_jags.R")
+
+```
+
+```{r}
+#plot(lognorm_rand_student_t)
+subset_pred <- grepl("b0\\[", dimnames(lognorm_rand_student_t_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_student_t_mcmc_rep,subset_pred)
+subset_pred_sigma <- grepl("sigma_b0", dimnames(lognorm_rand_student_t_mcmc_rep[[1]])[[2]])
+mcmc_subset_sigma <- get_values(lognorm_rand_student_t_mcmc_rep,subset_pred_sigma)
+sigma_b0_mean <- mean(mcmc_subset_sigma)
+b0_mean <- apply(mcmc_subset,2,mean)
+normalized_b0 <- b0_mean/sigma_b0_mean
+TQQPlot(normalized_b0,4)
+qqplot(qt(ppoints(20),4),normalized_b0)
+qqline(normalized_b0,distribution = function(x) qt(x,4), probs = c(0.05,0.95))
+
+
+#Mean variance of the random effect:
+mean(apply(mcmc_subset,1,var))
+hist(mcmc_subset)
+hist(apply(mcmc_subset,2,mean),breaks = 15)
+#Mean variance of an estimaed random Effect
+mean(apply(mcmc_subset,2,var))
+library("Dowd")
+
+```
+
+
+```{r}
+#Non of the tests has crazy results
+mean(get_values(lognorm_rand_student_t_mcmc_rep,"tmax.test"))
+mean(get_values(lognorm_rand_student_t_mcmc_rep,"tmin.test"))
+mean(get_values(lognorm_rand_student_t_mcmc_rep,"ks.test"))
+mean(get_values(lognorm_rand_student_t_mcmc_rep,"ss.test"))
+
+```
+##### Changing Priors
+```{r}
+source("Bayes1_lognormal_Random_jags_sens.r")
+```
+```{r}
+cat("\nModel2\n")
+summary(lognorm_rand_sens2)
+dic2
+cat("\nModel3\n")
+summary(lognorm_rand_sens3)
+dic3
+cat("\nModel1\n")
+summary(lognorm_rand_sens1)
+dic1
+cat("\nModel4\n")
+summary(lognorm_rand_sens4)
+dic4
+cat("\nModel5\n")
+summary(lognorm_rand_sens5)
+dic5
+cat("\nModel6\n")
+summary(lognorm_rand_sens6)
+dic6
+cat("\nModel7\n")
+summary(lognorm_rand_sens7)
+dic7
+```
+
 
 ### Weibull
 
@@ -391,17 +650,27 @@ extract.runjags(weibull_rand, "dic")
 ```
 
 
-##### CPO
+##### CPO and PPo
 CPO or better say the inverse of it
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(weibull_rand_mcmc_rep,subset_pred)
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
-#which y are thebiggest
-order(biggest,decreasing = T)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
 
+plot(icpo)
+plot(ippo)
+#which y are thebiggest
+matrix(order(icpo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+#Table 2 
+matrix(order(ippo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
+
+LPLM <- mean(log(cpo))
+LPLM
 ```
 
 ##### PPC and more summary
@@ -456,7 +725,7 @@ hist(mcmc_subset, breaks = 20)
 
 
 ##### DIC Manual
-Again just for comparison. For the random effect this is not written yet, I will do it probably later (03.01 17:40)
+Again just for comparison. 
 ```{r}
 
 #calculate md
@@ -483,7 +752,7 @@ subset_pred <- grepl("scale", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
 a["scale"] <- mean(get_values(weibull_rand_mcmc_rep,subset_pred))
 a1 <- a
 
-subset_pred <- grepl("b0", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
+subset_pred <- grepl("b0\\[", dimnames(weibull_rand_mcmc_rep[[1]])[[2]])
 b0_subset1 <- apply(get_values(weibull_rand_mcmc_rep,subset_pred),2,mean)
 #b0_subset1 <- get_values(weibull_rand_mcmc_rep,subset_pred)[728,]
 #since we reordered the ids initially since from small to big sorted
@@ -507,6 +776,13 @@ For further insides take a look on the code for the models
 
 ```{r echo=F}
 source("Bayes1_lognormal_jags_censored.R")
+```
+
+```{r}
+library(dplyr)
+Grub2 <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
+Grub2$number <- 1:nrow(Grub)
+Grub2 <- Grub2 %>% arrange(upperlim)
 ```
 #### Results 
 
@@ -562,8 +838,8 @@ a["beta2"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
 subset_pred <- grepl("beta1", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 a["beta1"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
 
-subset_pred <- grepl("sigma", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
-a["sigma"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
+subset_pred <- grepl("tau", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["tau"] <- mean(get_values(lognorm_cens_rep_mcmc,subset_pred))
 
 
 #there is no real y value therefore again use the simulated ones
@@ -572,26 +848,35 @@ mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
 Grub$sim_value <- apply(mcmc_subset,2,mean)
 #now we cann use this values for comparison
 pd <- md - (-2 *sum(log(dlnorm(Grub$sim_value,a["beta0"]+a["beta1"]*Grub$grubsize 
-                   + a["beta2"]*Grub$group,sqrt(1/a["sigma"])))))
+                   + a["beta2"]*Grub$group,sqrt(1/a["tau"])))))
 pv <- var(mcmc_subset_dic)/2
 c(pd,md,pd+md)
 c(pv,md,pv+md)
 
 ```
-##### CPO
+##### CPO and PPo
 CPO or better say the inverse of it
  
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
-#which y are thebiggest
-order(biggest,decreasing = T)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+
+plot(icpo)
+plot(ippo)
 
 
+Grub2$number[order(icpo,decreasing = T)][1:7]
+Grub2$number[order(ippo,decreasing = T)][1:7]
+
+LPLM <- mean(log(cpo))
+LPLM
 #2.) extract the res values 
 subset_pred <- grepl("res\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
@@ -621,8 +906,8 @@ subset_pred <- grepl("y\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset_y <- get_values(lognorm_cens_rep_mcmc,subset_pred)
 predicted_df <- data.frame(size = size, live1 = est_live_gr1,live2 = est_live_gr2)
 
-ggplot(Grub, aes(y = mcmc_subset_y[10,], x = grubsize, colour = as.factor(group))) + geom_point()+geom_line(color='red',data = predicted_df, aes(x=size, y=live1)) +
-  geom_line(color='green',data = predicted_df, aes(x=size, y=live2))
+ggplot(Grub, aes(y = mcmc_subset_y[10,], x = grubsize, colour = as.factor(group))) + geom_point()+geom_line(color='black',data = predicted_df, aes(x=size, y=live1)) +
+  geom_line(color='gray',data = predicted_df, aes(x=size, y=live2))
 
 
 ```
@@ -653,7 +938,7 @@ plot(weibull_cens_mcmc)
 ```{r}
 #coda integration so also coda stuff is available
 #Model Diagnostik plots
-weibull_cens_mcmc <- as.mcmc.list(weibull)
+weibull_cens_mcmc <- as.mcmc.list(weibull_cens)
 
 print("gelman diag")
 gelman.diag(weibull_cens_mcmc, confidence = 0.95)
@@ -705,17 +990,28 @@ c(pd,md,pd+md)
 c(pv,md,pv+md)
 
 ```
-##### CPO
+##### CPO and PPo
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
-#which y are thebiggest
-order(biggest,decreasing = T)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
 
+plot(icpo)
+plot(ippo)
+
+
+Grub2$number[order(icpo,decreasing = T)][1:7]
+Grub2$number[order(ippo,decreasing = T)][1:7]
+#b0_subset1[Grub$id]
+
+LPLM <- mean(log(cpo))
+LPLM
 ```
 
 ##### PPC and more summary
@@ -747,7 +1043,7 @@ Grub$id[c(106,43,131)]
 
 ```
 
-## Without censored with random effects
+## with censored with random effects
 ### Lognormal
 #### Models are calculated
 
@@ -781,7 +1077,6 @@ geweke.plot(lognorm_rand_cens_mcmc)
 ```
 
 ##### DIC
-Still to do
 ```{r}
 subset_pred <- grepl("Deviance", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
@@ -797,11 +1092,11 @@ a["beta2"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
 subset_pred <- grepl("beta1", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
 a["beta1"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
 
-subset_pred <- grepl("sigma", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
-a["sigma"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
+subset_pred <- grepl("tau", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+a["tau"] <- mean(get_values(lognorm_rand_cens_mcmc_rep,subset_pred))
 a1 <- a
 
-subset_pred <- grepl("b0", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
+subset_pred <- grepl("b0\\[", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
 b0_subset1 <- apply(get_values(lognorm_rand_cens_mcmc_rep,subset_pred),2,mean)
 #since we reordered the ids initially since from small to big sorted
 b0_subset <- b0_subset1[Grub$id]
@@ -814,24 +1109,34 @@ mcmc_subset_y <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
 Grub$sim_value <- apply(mcmc_subset_y,2,mean)
 
 pd <- md - (-2 *sum(log(dlnorm(Grub$sim_value,a["beta0"]+a["beta1"]*Grub$grubsize 
-                   + a["beta2"]*Grub$group + b0_subset,sqrt(1/a["sigma"])))))
-
-pv <- var(mcmc_subset)/2
+                   + a["beta2"]*Grub$group + b0_subset,sqrt(1/a["tau"])))))
 
 c(pd,md,pd+md)
-c(pv, md,pv+md)
+
+lognorm_dic(lognorm_rand_cens_mcmc_rep)
 ```
-##### CPO
+
+##### CPO and PPo
 CPO or better say the inverse of it
 
 ```{r}
 subset_pred <- grepl("ppo\\[", dimnames(lognorm_rand_cens_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep,subset_pred)
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
-#which y are thebiggest
-order(biggest,decreasing = T)
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+
+plot(icpo)
+plot(ippo)
+
+
+Grub2$number[order(icpo,decreasing = T)][1:7]
+Grub2$number[order(ippo,decreasing = T)][1:7]
+LPLM <- mean(log(cpo))
+LPLM
 
 ```
 
@@ -868,7 +1173,87 @@ mean(get_values(lognorm_rand_cens_mcmc_rep,"tmax.test"))
 mean(get_values(lognorm_rand_cens_mcmc_rep,"tmin.test"))
 mean(get_values(lognorm_rand_cens_mcmc_rep,"ks.test"))
 mean(get_values(lognorm_rand_cens_mcmc_rep,"ss.test"))
+
 ```
+
+####Sensitivity analysis
+
+We set up t-distributed random effects
+```{r  echo=F}
+source("Bayes1_lognormal_cens_Random_jags_student_t.R")
+
+```
+
+```{r}
+#plot(lognorm_rand_student_t)
+subset_pred <- grepl("b0\\[", dimnames(lognorm_rand_cens_mcmc_rep_student_t[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_rand_cens_mcmc_rep_student_t,subset_pred)
+subset_pred_sigma <- grepl("sigma_b0", dimnames(lognorm_rand_cens_mcmc_rep_student_t[[1]])[[2]])
+mcmc_subset_sigma <- get_values(lognorm_rand_cens_mcmc_rep_student_t,subset_pred_sigma)
+sigma_b0_mean <- mean(mcmc_subset_sigma)
+b0_mean <- apply(mcmc_subset,2,mean)
+normalized_b0 <- b0_mean/sigma_b0_mean
+# TQQPlot(normalized_b0,4)
+# qqplot(qt(ppoints(20),4),normalized_b0)
+# qqline(normalized_b0,distribution = function(x) qt(x,4), probs = c(0.05,0.95))
+
+
+#Mean variance of the random effect:
+mean(apply(mcmc_subset,1,var))
+hist(mcmc_subset)
+hist(apply(mcmc_subset,2,mean),breaks = 15)
+#Mean variance of an estimaed random Effect
+mean(apply(mcmc_subset,2,var))
+```
+
+```{r}
+#Non of the tests has crazy results
+mean(get_values(lognorm_rand_cens_mcmc_rep_student_t,"tmax.test"))
+mean(get_values(lognorm_rand_cens_mcmc_rep_student_t,"tmin.test"))
+mean(get_values(lognorm_rand_cens_mcmc_rep_student_t,"ks.test"))
+mean(get_values(lognorm_rand_cens_mcmc_rep_student_t,"ss.test"))
+
+```
+##### Changing Priors
+```{r}
+source("Bayes1_lognormal_Random_cens_sens_jags.R")
+```
+```{r}
+#
+# cat("the original estimations\n")
+# dic2 = lognorm_dic(lognorm_rand_cens_mcmc_rep)
+# add.summary(lognorm_rand_cens_rep, vars = c("beta0","beta1","beta2","sigma","b0[1]"))
+#
+cat("\n\nModel2 Bigger beta priors\n")
+dic2 = lognorm_dic(lognorm_rand_cens_sens2)
+add.summary(lognorm_rand_cens_sens2, vars = c("beta0","beta1","beta2","sigma","tau","b0[1]"))
+#
+cat("\n\nModel3 smaller beta priors\n")
+add.summary(lognorm_rand_cens_sens3, vars = c("beta0","beta1","beta2","sigma","tau","b0[1]"))
+dic3 = lognorm_dic(lognorm_rand_cens_sens3)
+#
+cat("\n\nModel1 Vary the Distribution of the sigma and random effect sigma\n")
+add.summary(lognorm_rand_cens_sens1, vars = c("beta0","beta1","beta2","sigma","tau","b0[1]"))
+dic1 = lognorm_dic(lognorm_rand_cens_sens1)
+#
+cat("\n\nModel4 Vary the Distribution of the sigma and random effect sigma\n")
+add.summary(lognorm_rand_cens_sens4, vars = c("beta0","beta1","beta2","sigma","tau","b0[1]"))
+dic4 = lognorm_dic(lognorm_rand_cens_sens4)
+#
+cat("\n\nModel5 Vary the Distribution of the random effect sigma\n")
+add.summary(lognorm_rand_cens_sens5, vars = c("beta0","beta1","beta2","sigma","tau","b0[1]"))
+dic5 = lognorm_dic(lognorm_rand_cens_sens5)
+#
+cat("\n\nModel6 Vary everything\n")
+add.summary(lognorm_rand_cens_sens6, vars = c("beta0","beta1","beta2","sigma","tau","b0[1]"))
+dic6 = lognorm_dic(lognorm_rand_cens_sens6)
+#
+cat("\n\nModel7 No Grubsize\n")
+add.summary(lognorm_rand_cens_sens7, vars = c("beta0","beta2","sigma","tau","b0[1]"))
+dic7 = lognorm_dic(lognorm_rand_cens_sens7)
+
+```
+
 ### Weibull
 
 ```{r  echo=F}
@@ -924,7 +1309,7 @@ subset_pred <- grepl("scale", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
 a["scale"] <- mean(get_values(weibull_cens_rand_mcmc_rep,subset_pred))
 a1 <- a
 
-subset_pred <- grepl("b0", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+subset_pred <- grepl("b0\\[", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
 b0_subset1 <- apply(get_values(weibull_cens_rand_mcmc_rep,subset_pred),2,mean)
 #since we reordered the ids initially since from small to big sorted
 b0_subset <- b0_subset1[Grub$id]
@@ -937,7 +1322,7 @@ Grub$sim_value <- apply(mcmc_subset_y,2,mean)
 
 #now we can use this values for comparison
 #for exampe see weibull_baysian_easy (i know wrong spelling ^^) exp()
-scale <- exp(a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group +b0_subset )
+scale <- exp((a1["beta0"]+a1["beta1"]*Grub$grubsize + a1["beta2"]*Grub$group +b0_subset ))
 shape <- 1/a1["scale"]
 
 pd <- md - (-2*sum(dweibull(Grub$sim_value , scale = scale, shape  = shape, log = T)))
@@ -947,7 +1332,21 @@ pv <- var(mcmc_subset)/2
 c(pd,md,pd+md)
 c(pv, md,pv+md)
 ```
-##### CPO
+#####Interpretation Weibull and Lognormal
+```{r}
+# qweibull(0.4,1,2)
+# qweibull(0.4,1,2*1.02)/1.02
+
+#Weibull Case
+#if we have group 2 instead of group 1, we have have an increase of quantile survival time by ((exp(beta2)-1)*100)% (survival time changes by a factor of exp(beta2))
+((exp(a1["beta2"])-1)*100)
+#in this case the expected survival time shrinks for 27%
+
+#Lognormal Case
+#if we have group 2 instead of group 1, we encounter an increase of a1["beta2"] in terms of the log value of the survival time and in terms of the the true survival time the change is the same as for the weibull case exp(beta2) ((exp(beta2)-1)*100)% 
+
+```
+##### CPO and PPo
 CPO or better say the inverse of it
  
 
@@ -955,13 +1354,21 @@ CPO or better say the inverse of it
 subset_pred <- grepl("ppo\\[", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(weibull_cens_rand_mcmc_rep,subset_pred)
 
-#cpo which are now far of?
-biggest <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest)
-#which y are thebiggest
-order(biggest,decreasing = T)
-sort(biggest, decreasing = T)[1:3]
-Grub$id[c(139,138,140)]
+#cpo (leave one out Prediction)
+cpo <- (apply(1/as.matrix(mcmc_subset),2,mean))^-1
+icpo <- cpo^-1
+#ppo (without leave one out, therefore violates liklihoodprinciple(dont predict with same data))
+ppo <- (apply(as.matrix(mcmc_subset),2,mean))
+ippo <- ppo^-1
+
+plot(icpo)
+plot(ippo)
+
+
+Grub2$number[order(icpo,decreasing = T)][1:7]
+Grub2$number[order(ippo,decreasing = T)][1:7]
+
+LPLM <- mean(log(cpo))
 ```
 
 ##### PPC and more summary without random intercept
@@ -1002,4 +1409,21 @@ mean(get_values(weibull_cens_rand_mcmc_rep,"tmax.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"tmin.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"ks.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"ss.test"))
+```
+#### Outlier stuff
+105, 91, 126 are especially high in average
+```{r}
+Grub_outlier <- Grub2[Grub2$number %in% c(105,91,126),]
+Grub2[Grub2$number %in% c(105,91,126),]
+```
+all outlier are in Group 2, they all survive the whole experiment but they are on different plates. Their size is not special at all. 
+
+```{r}
+Grub2[(Grub2$group == 1) &(Grub2$value == 12) ,]
+
+```
+All that have survived in the second group the 12 days, shoud not have happend, according to the distribution
+```{r}
+Grub2[(Grub2$group == 1) ,]
+
 ```

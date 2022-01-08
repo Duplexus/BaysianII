@@ -17,7 +17,7 @@ Grub$upperlim[NAs] <- 12.000001
 Grub$state <- c(rep(1,length_Upper),rep(2,lenngth_NA_Upper))
 Grub$value2 <- as.numeric(NA)
 
-parameters = c("sigma", "beta2", "beta0", "beta1", "b0")
+parameters = c("sigma", "beta2", "beta0", "beta1", "b0","sigma2_b0")
 
 model.data <- list(y = Grub$value2, z = Grub$state, N1 = length_Upper,N2 = lenngth_NA_Upper,
                    x1 = Grub$grubsize, x2 = Grub$group, id = Grub$id,
@@ -39,7 +39,7 @@ model.function <- "model{
   }
   #priors
   tau_b0 <- 1/sigma_b0
-  sigma_b0 ~ dunif(0,100)
+  sigma2_b0 ~ dunif(0,100)
   # similar to dgamma(1,0.0001) bzw. dgamma(1,10000) if interpreted as we would get it from the exponential 
   k ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)
@@ -51,21 +51,22 @@ model.function <- "model{
 }"
 
 #Monitored Variables
-parameters <- c("k", "scale", "beta2", "beta0", "beta1","b0")
+parameters <- c("k", "scale", "beta2", "beta0", "beta1","b0","sigma2_b0")
 #parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
 
-model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
-                    list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))))
-# model.inits <- list(list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))),
-#                     list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))))
-
+# model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
+#                     list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))))
+model.inits <- list(list(k=4,sigma2_b0 = 2, beta0=1, beta1 = 1,beta2 = 1,b0 = c(rep(1,times = 20)) ),
+                    list(k=2,sigma2_b0 = 20, beta0=10, beta1 = 10,beta2 = 10, b0 =  rnorm(20,0,4) ),
+                    list(k=0.5,sigma2_b0 = 15, beta0=20, beta1 = -10,beta2 = -15, b0 =  runif(20,-5,5)  )
+)
 
 runjags.options(method = "rjparallel")
 #Set Up Model
 weibull_cens_rand <- run.jags(model = model.function,
                     monitor = parameters, data = model.data,
-                    inits = model.inits, burnin = 2000,
-                    sample = 5000, thin = 1, n.chains = 2)
+                    inits = model.inits, burnin = 10000,
+                    sample = 5000, thin = 10, n.chains = 3)
 
 
 weibull_cens_rand_mcmc <- as.mcmc.list(weibull_cens_rand)
@@ -94,8 +95,8 @@ model.function <- "model{
     
   }
   #priors
-  tau_b0 <- 1/sigma_b0
-  sigma_b0 ~ dunif(0,100)
+  tau_b0 <- 1/sigma2_b0
+  sigma2_b0 ~ dunif(0,100)
   k ~ dunif(0,100)
   scale <- 1/k
   beta0 ~ dnorm(0,0.000001)
@@ -163,13 +164,13 @@ model.function <- "model{
 
 }"
 parameters = c("y_rep","ppo_rep","ppo","k", "beta2", "beta0","sigma", "b0_rep", "beta1", "b0",
-               "tmin.test","tmax.test","ks.test", "sigma","Deviance","scale","ss.test","y")
+               "tmin.test","tmax.test","ks.test", "sigma","Deviance","scale","ss.test","y","sigma2_b0")
 
 
 weibull_cens_rand_rep <- run.jags(model = model.function,
                          monitor = parameters, data = model.data,
                          inits = model.inits, burnin = 2000,
-                         sample = 5000, thin = 1, n.chains = 2)
+                         sample = 5000, thin = 1, n.chains = 3)
 
 weibull_cens_rand_mcmc_rep <- as.mcmc.list(weibull_cens_rand_rep)
 

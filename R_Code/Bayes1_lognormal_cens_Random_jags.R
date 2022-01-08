@@ -4,6 +4,7 @@ library("runjags")
 library("coda")
 library("dplyr")
 Grub <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
+Grub$number <- 1:nrow(Grub)
 Grub <- Grub %>% arrange(upperlim)
 length_Upper <- length(sort(Grub$upperlim))
 #10
@@ -15,10 +16,15 @@ Grub$upperlim[NAs] <- 12.000001
 Grub$state <- c(rep(1,length_Upper),rep(2,lenngth_NA_Upper))
 Grub$value2 <- as.numeric(NA)
 
-model.inits <-list(list(sigma=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
-                    list(sigma=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))))
+model.inits <- list(list(tau=2,sigma2_b0 = 2, beta0=1, beta1 = 1,beta2 = 1,b0 = c(rep(1,times = 20)) ),
+                    list(tau=20, sigma2_b0 = 20,beta0=10, beta1 = 10,beta2 = 10, b0 =  rnorm(20,0,30) ),
+                    list(tau=15,sigma2_b0 = 15, beta0=20, beta1 = -10,beta2 = -15, b0 =  runif(20,0,10)  )
+)
 
-parameters = c("sigma", "beta2", "beta0", "beta1", "b0")
+# model.inits <-list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
+#                     list(tau=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))))
+
+parameters = c("sigma", "sigma2_b0","beta2", "beta0", "beta1", "b0")
 
 model.data <- list(y = Grub$value2, z = Grub$state, N1 = length_Upper,N2 = lenngth_NA_Upper,
                    x1 = Grub$grubsize, x2 = Grub$group, id = Grub$id,
@@ -29,21 +35,23 @@ model.data <- list(y = Grub$value2, z = Grub$state, N1 = length_Upper,N2 = lenng
 model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i,])
-    y[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]+ b0[id[i]]
   }
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i,])
-    y[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]+ b0[id[i]]
   }
   #priors
-  sigma ~ dgamma(0.001, 0.001)
-  tau_b0 <- 1/sigma_b0
-  sigma_b0 ~ dunif(0,100)
-  beta0 ~ dnorm(0,0.000001)
-  beta1 ~ dnorm(0,0.000001)
-  beta2 ~ dnorm(0,0.000001)
+  tau ~ dgamma(0.001, 0.001)
+  sigma <- sqrt(1/tau)
+  
+  tau_b0 <- 1/sigma2_b0
+  sigma2_b0 ~ dunif(0,100)
+  beta0 ~ dnorm(0,1e-6)
+  beta1 ~ dnorm(0,1e-6)
+  beta2 ~ dnorm(0,1e-6)
   for ( i in 1:Nsubj){
     b0[i] ~  dnorm(0,tau_b0)
   }
@@ -54,37 +62,38 @@ runjags.options(method = "rjparallel")
 lognorm_rand_cens <- run.jags(model = model.function,
                     monitor = parameters, data = model.data,
                     inits = model.inits, burnin = 2000,
-                    sample = 5000, thin = 1, n.chains = 2)
+                    sample = 5000, thin = 1, n.chains = 3)
 lognorm_rand_cens_mcmc <- as.mcmc.list(lognorm_rand_cens)
 
 parameters = c("sigma", "beta2", "beta0", "beta1", "b0","predict","b0.rep",
-               "ppo","tmin.test","tmax.test","ks.test", "sigma","ss.test",
-               "y_rep", "ppo_rep","y","Deviance")
+               "ppo","tmin.test","tmax.test","ks.test", "tau","ss.test",
+               "y_rep", "ppo_rep","y","Deviance","tau","sigma2_b0")
 model.function <- "model{
    for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i,])
-    y[i] ~ dlnorm(mu[i], sigma)
-    y_rep[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
+    y_rep[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]+ b0[id[i]]
-    predict[i]  ~ dlnorm(mu[i], sigma)
-    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
+    predict[i]  ~ dlnorm(mu[i], tau)
+    D[i] <- -2*log(dlnorm(y[i],mu[i], tau))
   }
   for (i in (N1+1):(N1+N2)){
     z[i] ~ dinterval(y[i], lims[i,])
-    y[i] ~ dlnorm(mu[i], sigma)
-    y_rep[i] ~ dlnorm(mu[i], sigma)
+    y[i] ~ dlnorm(mu[i], tau)
+    y_rep[i] ~ dlnorm(mu[i], tau)
     mu[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i]+ b0[id[i]]
-    predict[i]  ~ dlnorm(mu[i], sigma)
-    D[i] <- -2*log(dlnorm(y[i],mu[i], sigma))
+    predict[i]  ~ dlnorm(mu[i], tau)
+    D[i] <- -2*log(dlnorm(y[i],mu[i], tau))
   }
   Deviance <- sum(D[])
   #priors
-  sigma ~ dgamma(0.001, 0.001)
-  tau_b0 <- 1/sigma_b0
-  sigma_b0 ~ dunif(0,100)
-  beta0 ~ dnorm(0,0.000001)
-  beta1 ~ dnorm(0,0.000001)
-  beta2 ~ dnorm(0,0.000001)
+  tau ~ dgamma(0.001, 0.001)
+  sigma <- sqrt(1/tau)
+  tau_b0 <- 1/sigma2_b0
+  sigma2_b0 ~ dunif(0,100)
+  beta0 ~ dnorm(0,1e-06)
+  beta1 ~ dnorm(0,1e-06)
+  beta2 ~ dnorm(0,1e-06)
   for (i in 1:N){
     ppo[i] <- dlnorm(y[i],mu[i],sigma)
     ppo_rep[i] <- dlnorm(y_rep[i],mu[i],sigma)
@@ -144,6 +153,6 @@ model.function <- "model{
 lognorm_rand_cens_rep <- run.jags(model = model.function,
                     monitor = parameters, data = model.data,
                     inits = model.inits, burnin = 2000,
-                    sample = 5000, thin = 1, n.chains = 2)
+                    sample = 5000, thin = 1, n.chains = 3)
 lognorm_rand_cens_mcmc_rep <- as.mcmc.list(lognorm_rand_cens_rep)
 

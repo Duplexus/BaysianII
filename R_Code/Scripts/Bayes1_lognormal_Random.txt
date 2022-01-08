@@ -1,20 +1,24 @@
-model
-{
-    for (i in 1:N1) {
-        mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i] + b0[id[i]]
-        y[i] ~ dlnorm(mu[i], sigma)
-    }
-    for (i in (N1 + 1):(N1 + N2)) {
-        mu[i] <- beta0 + beta1 * x1[i] + beta2 * x2[i] + b0[id[i]]
-        y[i] ~ dlnorm(mu[i], sigma)
-    }
-    sigma ~ dgamma(0.01, 0.01)
-    tau_b0 <- 1/sigma_b0
-    sigma_b0 ~ dunif(0.00000E+00, 100)
-    beta0 ~ dnorm(0.00000E+00, 1.00000E-06)
-    beta1 ~ dnorm(0.00000E+00, 1.00000E-06)
-    beta2 ~ dnorm(0.00000E+00, 1.00000E-06)
-    for (i in 1:Nsubj) {
-        b0[i] ~ dnorm(0.00000E+00, tau_b0)
-    }
+
+model.function <- function(){
+   for (i in 1:N1){
+    mu[i] <- beta0 + beta1  * x1[i] + beta2 *x2[i]+ b0[id[i]]
+    predict[i]  ~ dlnorm(mu[i], sigma)C(lims[i,1],lims[i,2])
+  }
+  for (i in (N1+1):(N1+N2)){
+    mu[i] <- beta0 + beta1  * x1[i] + beta2 *x2[i]+ b0[id[i]]
+    predict[i]  ~ dlnorm(mu[i], sigma)C(lims[i,1],)
+  }
+  #priors
+  sigma ~ dgamma(0.1, 0.1)
+  tau_b0 <- 1/sigma_b0
+  sigma_b0 ~ dunif(0,100)
+  beta0 ~ dnorm(0,0.000001)
+  beta1 ~ dnorm(0,0.000001)
+  beta2 ~ dnorm(0,0.000001)
+  for ( i in 1:Nsubj){
+    b0[i] ~  dnorm(0,tau_b0)
+  }
+  for (i in 1:(N1+N2)){
+        ppo[i] <- pow(2*3.141593,-0.5)*pow(sigma,-1)*exp(-0.5*pow((predict[i]-mu[i])/sigma, 2))
+  }
 }

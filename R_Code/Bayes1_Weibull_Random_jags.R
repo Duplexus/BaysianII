@@ -37,18 +37,20 @@ model.function <- "model{
 parameters <- c("k", "sigma", "beta2", "beta0", "beta1","b0", "b0_rep","sigma_b0","y_sim")
 #parameters <- c("k", "beta1", "b0", "b0_rep", "sigma")
 
-model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
-                    list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))))
-# model.inits <- list(list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))),
-#                     list(k=2,beta1 = 1, b0 = c(rep(1,times = 20))))
+# model.inits <- list(list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))),
+#                     list(k=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20)),b0_rep = c(rep(1,times = 20))))
 
+model.inits <- list(list(k=4,sigma2_b0 =2, beta0=1, beta1 = 1,beta2 = 1,b0 = c(rep(1,times = 20)) ),
+                    list(k=2,sigma2_b0 =20, beta0=10, beta1 = 10,beta2 = 10, b0 =  rnorm(20,0,30) ),
+                    list(k=0.5,sigma2_b0 =15, beta0=20, beta1 = -10,beta2 = -15, b0 =  runif(20,0,10)  )
+)
 
 runjags.options(method = "rjparallel")
 #Set Up Model
 weibull_rand <- run.jags(model = model.function,
                     monitor = parameters, data = model.data,
                     inits = model.inits, burnin = 2000,
-                    sample = 5000, thin = 1, n.chains = 2)
+                    sample = 5000, thin = 1, n.chains = 3)
 
 weibull_rand_mcmc <- as.mcmc.list(weibull_rand)
 
@@ -142,7 +144,7 @@ parameters = c("ppo_rep","y_rep","res","ppo","k", "beta2", "beta0", "scale", "De
 weibull_rand_rep <- run.jags(model = model.function,
                          monitor = parameters, data = model.data,
                          inits = model.inits, burnin = 2000,
-                         sample = 5000, thin = 1, n.chains = 2)
+                         sample = 5000, thin = 1, n.chains = 3)
 
 weibull_rand_mcmc_rep <- as.mcmc.list(weibull_rand_rep)
 
