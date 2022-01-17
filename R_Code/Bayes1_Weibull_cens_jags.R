@@ -43,9 +43,9 @@ model.function <- "model{
   beta1 ~ dnorm(0,0.000001)
   beta2 ~ dnorm(0,0.000001)
 }"
-model.inits <- list(list(k=3, beta0=1, beta1 = 1,beta2 = 1 ),
+model.inits <- list(list(k=1, beta0=1, beta1 = 1,beta2 = 1 ),
                     list(k=1, beta0=10, beta1 = 10,beta2 = 10 ),
-                    list(k=0.5, beta0=20, beta1 = -10,beta2 = -15 )
+                    list(k=1, beta0=20, beta1 = -10,beta2 = -15 )
 )
 
 #Monitored Variables

@@ -13,11 +13,11 @@ Grub$grubsize
 #                    list(tau=2, beta1 = 1, b0 = c(rep(1,times = 20))))
 
 
-model.inits <- list(list(tau=2,sigma2_b0 =2 , beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
-                    list(tau=20,sigma2_b0 =20, beta0=10, beta1 = 10,beta2 = 10 , b0 =  rnorm(20,0,30) ),
-                    list(tau=15,sigma2_b0 =15, beta0=20, beta1 = -10,beta2 = -15 , b0 =  runif(20,0,10))
+model.inits <- list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1 ),
+                    list(tau=20, beta0=10, beta1 = 10,beta2 = 10 ),
+                    list(tau=15, beta0=20, beta1 = -10,beta2 = -15 )
 )
-parameters = c("sigma", "beta0", "beta1", "beta2","sigma2_b0","b0")
+parameters = c("sigma2", "beta0", "beta1", "beta2","sigma2_b0","tau")
 
 model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
                     id = Grub$id,x2 = Grub$group,  Nsubj = length(unique(Grub$id)))
@@ -33,7 +33,7 @@ model.function <- "model{
   }
   #priors
   tau ~ dgamma(0.001,0.001)
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)

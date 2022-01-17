@@ -52,21 +52,20 @@ outer_5 <- function(x,sds=1.96){
 
 lognorm_dic <- function(lognorm_object){
   lognorm_object = as.mcmc.list(lognorm_object)
-  lognorm_object2 = as.mcmc.list(lognorm_rand_cens_sens4)
   
   
-  subset_pred <- grepl("Deviance", dimnames(lognorm_object[[1]])[[2]])
+  subset_pred <- grepl("^Deviance$", dimnames(lognorm_object[[1]])[[2]])
   lognorm_subset <- get_values(lognorm_object,subset_pred)
   md <- mean(lognorm_subset)
 
   a <- vector()
-  subset_pred <- grepl("beta0", dimnames(lognorm_object[[1]])[[2]])
+  subset_pred <- grepl("^beta0$", dimnames(lognorm_object[[1]])[[2]])
   a["beta0"] <- mean(get_values(lognorm_object,subset_pred))
 
-  subset_pred <- grepl("beta2", dimnames(lognorm_object[[1]])[[2]])
+  subset_pred <- grepl("^beta2$", dimnames(lognorm_object[[1]])[[2]])
   a["beta2"] <- mean(get_values(lognorm_object,subset_pred))
 
-  subset_pred_b1 <- grepl("beta1", dimnames(lognorm_object[[1]])[[2]])
+  subset_pred_b1 <- grepl("^beta1$", dimnames(lognorm_object[[1]])[[2]])
   if (any(subset_pred_b1)){
   a["beta1"] <- mean(get_values(lognorm_object,subset_pred_b1))
   }
@@ -94,3 +93,4 @@ lognorm_dic <- function(lognorm_object){
   cat("pd: \t",pd,"\nDeviance:", md,"\nDIC: \t",pd+md,"\n")
   return(c(pd,md,pd+md))
 }
+

@@ -26,7 +26,7 @@ model.inits <- list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1 ),
                     list(tau=20, beta0=10, beta1 = 10,beta2 = 10 ),
                     list(tau=40, beta0=-100, beta1 = 100,beta2 = -30 )
 )
-parameters <-c("beta0", "beta1", "beta2", "tau","sigma")
+parameters <-c("beta0", "beta1", "beta2", "tau","sigma2")
 model.function <- "model{
   for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i, ])
@@ -42,7 +42,7 @@ model.function <- "model{
   }
   #priors
   tau ~ dgamma(0.001, 0.001)
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   beta0 ~ dnorm(0,0.001)
   beta1 ~ dnorm(0,0.001)
   beta2 ~ dnorm(0,0.001)

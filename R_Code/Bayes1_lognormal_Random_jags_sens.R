@@ -13,11 +13,11 @@ Grub$grubsize
 #                    list(tau=2, beta1 = 1, b0 = c(rep(1,times = 20))))
 
 
-model.inits <- list(list(tau2=2,sigma2_b0 =2 , beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
-                    list(tau2=20,sigma2_b0 =20, beta0=10, beta1 = 10,beta2 = 10 , b0 =  rnorm(20,0,30) ),
-                    list(tau2=15,sigma2_b0 =15, beta0=20, beta1 = -10,beta2 = -15 , b0 =  runif(20,0,10))
+model.inits <- list(list(tau2=2, beta0=1, beta1 = 1,beta2 = 1 ),
+                    list(tau2=20, beta0=10, beta1 = 10,beta2 = 10 ),
+                    list(tau2=15, beta0=20, beta1 = -10,beta2 = -15 )
 )
-parameters = c("sigma", "beta2", "beta1","beta0","sigma2_b0","tau")
+parameters = c("sigma2", "beta2", "beta1","beta0","sigma2_b0","tau")
 #parameters = c("sigma", "beta1", "b0")
 
 model.data <- list( y = Grub$value, N = length(Grub$value), x1 = Grub$grubsize,
@@ -33,7 +33,7 @@ model.function <- "model{
   #priors
   tau2 ~ dunif(0,1000)
   tau <- 1/tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,0.001)
@@ -65,7 +65,7 @@ model.function <- "model{
   #priors
   tau2 ~ dunif(0,1000)
   tau <- 1/tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,10e-9)
@@ -100,7 +100,7 @@ model.function <- "model{
   #priors
   tau2 ~ dunif(0,1000)
   tau <- 1/tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)
@@ -134,7 +134,7 @@ model.function <- "model{
   #priors
   tau2 ~ dgamma(0.2,0.2)
   tau <- tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,0.000001)
@@ -169,7 +169,7 @@ model.function <- "model{
   #priors
   tau2 ~ dgamma(0.0001,0.0001)
   tau <- tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dgamma(0.01,0.01)
   beta0 ~ dnorm(0,0.000001)
@@ -201,7 +201,7 @@ model.function <- "model{
   #priors
   tau2 ~ dunif(0,1000)
   tau <- 1/tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dgamma(0.01,0.01)
   beta0 ~ dnorm(0,10e-9)
@@ -233,7 +233,7 @@ model.function <- "model{
   #priors
   tau2 ~ dgamma(0.001,0.001)
   tau <- tau2
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,0.001)

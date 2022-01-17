@@ -14,7 +14,7 @@ model.inits <- list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1 ),
                     )
 
 #Monitored Variables
-parameters <-c("beta0", "beta1", "beta2", "sigma","tau")
+parameters <-c("beta0", "beta1", "beta2", "sigma2","tau")
 
 
 
@@ -34,7 +34,7 @@ model.function <- "model{
   }
   #priors
   tau ~ dgamma(0.001, 0.001)
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   beta0 ~ dnorm(0,0.001)
   beta1 ~ dnorm(0,0.001)
   beta2 ~ dnorm(0,0.001)

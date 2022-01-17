@@ -8,7 +8,6 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-#helpfunctions is just used but getvalues() i think
 source("helpfunctions.r")
 library("runjags")
 library("coda")
@@ -47,6 +46,11 @@ legend("topright", legend = c("SS", "HB"),lwd = 3,
                title = "Groups")
 dev.off()
 #first is group 0 second is group 1
+Grubis <- read.csv("..\\data\\Grubs_Nematodes.csv")
+mean(Grubis$GRUBSIZE)
+sd(Grubis$GRUBSIZE)
+min(Grub$grubsize)
+summary(Grubis$GRUBSIZE)
 ```
 ### Median Death times
 Median death time for Group treated with SS is higher than it is the for the HB EPNs therefore this indicates, that we should use HB since, then we are faster with the killing process
@@ -157,16 +161,14 @@ PPC how often true y in 95% intervall
 subset_pred <- grepl("y_rep\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_mcmc_rep,subset_pred)
 
-# mcmc_subset
-#how often are the values bigger or smallen than the predicted ones
-max(apply(apply(mcmc_subset,1,function(x){x > Grub$value}),2,mean))
-
-#how do the distribution look like comapred to the origninal one
-summary(mcmc_subset[,1])
-hist(Grub$value)
-hist(mcmc_subset[1,],breaks = 20)
-hist(mcmc_subset[2,],breaks = 20)
-hist(mcmc_subset[3,],breaks = 20)
+# # mcmc_subset
+# #how often are the values bigger or smallen than the predicted ones
+# max(apply(apply(mcmc_subset,1,function(x){x > Grub$value}),2,mean))
+# 
+# #how do the distribution look like comapred to the origninal one
+# summary(mcmc_subset[,1])
+# hist(Grub$value)
+# hist(mcmc_subset[1,],breaks = 20)
 
 # how extreme are the predicted values compared to the original ones
 mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
@@ -208,20 +210,67 @@ c(pv,md,pv+md)
 ```
 
 ##### Plot the Model
+
 ```{r}
-#"a" is the same as defined for Dic is pretty close in terms of ccalculation
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["beta0"] <- median(get_values(lognorm_mcmc_rep,subset_pred))
 
-library(ggplot2)
-#Estimation of the regression means but there could be otber ways to get this done first calculate in any itteration then mean
-# not the same since size effect is not linear on value
+subset_pred <- grepl("beta2", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["beta2"] <- median(get_values(lognorm_mcmc_rep,subset_pred))
 
-#group 1
-size <- seq(-2,4,by = 0.1)
-est_live_gr1 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["sigma"]))
+subset_pred <- grepl("beta1", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["beta1"] <- median(get_values(lognorm_mcmc_rep,subset_pred))
+
+subset_pred <- grepl("tau", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+a["tau"] <- median(get_values(lognorm_mcmc_rep,subset_pred))
+
+
+# subset_pred <- grepl("y\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+# mcmc_subset_y <- get_values(lognorm_mcmc_rep,subset_pred)
+
+size <- seq(-2,4,length.out = 140)
 #group 2 beta 2 is the group
-est_live_gr2 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["sigma"]))
+gr1_low <- qlnorm(0.025,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["tau"]))
+gr1_mid <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["tau"]))
+gr1_up <- qlnorm(0.975,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["tau"]))
+gr2_low <- qlnorm(0.025,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["tau"]))
+gr2_mid <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["tau"]))
+gr2_up <- qlnorm(0.975,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["tau"]))
+# 
+
+# y_sample <- apply(mcmc_subset,2,mean)
+# Grub$grubsize, Grub$value
+# Grub2$grubsize, y_sample
+Grub2 <- Grub
+plot(Grub$grubsize, Grub$value,  pch = 19,ylim = c(0,20), col = (Grub$group + 2), lwd = 1.5,
+      xlab = "Days", cex.lab = 1.8,
+     ylab = "Overall survival probability")
+lines(size,gr1_low, col = 2,lty = 2, lwd = 3)
+lines(size,gr1_mid, col = 2, lwd = 3)
+lines(size,gr1_up, col = 2,lty = 2, lwd = 3)
+lines(size,gr2_low, col = 3,lty = 2, lwd = 3)
+lines(size,gr2_mid, col = 3, lwd = 3)
+lines(size,gr2_up, col = 3, lwd = 3,lty = 2)
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3),
+               title = "Groups")
 
 
+pdf("..\\graphics\\Plot3.pdf", width = 7, height = 5)
+plot(Grub$grubsize, Grub$value,  pch = 19,ylim = c(0,20), col = (Grub2$group + 2), lwd = 1.5,
+      xlab = "Days", cex.lab = 1.4,
+     ylab = "Overall survival probability")
+lines(size,gr1_low, col = 2,lty = 2, lwd = 3)
+lines(size,gr1_mid, col = 2, lwd = 3)
+lines(size,gr1_up, col = 2,lty = 2, lwd = 3)
+lines(size,gr2_low, col = 3,lty = 2, lwd = 3)
+lines(size,gr2_mid, col = 3, lwd = 3)
+lines(size,gr2_up, col = 3, lwd = 3,lty = 2)
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3),
+               title = "Groups")
+dev.off()
 ```
 ##### Sensitivity
 ```{r}
@@ -352,7 +401,59 @@ c(pd,md,pd+md)
 c(pv,md,pv+md)
 
 ```
+##### Plot the Model
 
+```{r}
+modelstuff <- weibull_mcmc_rep
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(modelstuff[[1]])[[2]])
+a["beta0"] <- median(get_values(modelstuff,subset_pred))
+
+subset_pred <- grepl("beta2", dimnames(modelstuff[[1]])[[2]])
+a["beta2"] <- median(get_values(modelstuff,subset_pred))
+
+subset_pred <- grepl("beta1", dimnames(modelstuff[[1]])[[2]])
+a["beta1"] <- median(get_values(modelstuff,subset_pred))
+
+subset_pred <- grepl("scale", dimnames(modelstuff[[1]])[[2]])
+a["scale"] <- median(get_values(modelstuff,subset_pred))
+size <- seq(-2,4,length.out = 140)
+
+# subset_pred <- grepl("y\\[", dimnames(lognorm_mcmc_rep[[1]])[[2]])
+# mcmc_subset_y <- get_values(lognorm_mcmc_rep,subset_pred)
+
+size <- seq(-2,4,length.out = 140)
+#group 2 beta 2 is the group
+scale_1 <- exp(a1["beta0"]+a1["beta1"]*size + a1["beta2"]*0)
+scale_2 <- exp(a1["beta0"]+a1["beta1"]*size + a1["beta2"]*1)
+shape <- 1/a1["scale"]
+gr1_low <- qweibull(0.025,shape,scale_1)
+gr1_mid <- qweibull(0.5,shape,scale_1)
+gr1_up <- qweibull(0.975,shape,scale_1)
+gr2_low <- qweibull(0.025,shape,scale_2)
+gr2_mid <- qweibull(0.5,shape,scale_2)
+gr2_up <- qweibull(0.975,shape,scale_2)
+# 
+
+# y_sample <- apply(mcmc_subset,2,mean)
+# Grub$grubsize, Grub$value
+# Grub2$grubsize, y_sample
+plot(Grub$grubsize, Grub$value,  pch = 19,ylim = c(0,20), col = (Grub2$group + 2), lwd = 1.5,
+      xlab = "Days", cex.lab = 1.8,
+     ylab = "Overall survival probability")
+lines(size,gr1_low, col = 2,lty = 2, lwd = 3)
+lines(size,gr1_mid, col = 2, lwd = 3)
+lines(size,gr1_up, col = 2,lty = 2, lwd = 3)
+lines(size,gr2_low, col = 3,lty = 2, lwd = 3)
+lines(size,gr2_mid, col = 3, lwd = 3)
+lines(size,gr2_up, col = 3, lwd = 3,lty = 2)
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3),
+               title = "Groups")
+
+
+dev.off()
+```
 ##### Sensitivity
 ```{r}
 source("Bayes1_weibull_jags_sens.R")
@@ -439,6 +540,7 @@ pd <- md - (-2 *sum(log(dlnorm(Grub$sim_value,a["beta0"]+a["beta1"]*Grub$grubsiz
 c(pd,md,pd+md)
 
 ```
+
 ##### Clustering of repsonses
 
 ```{r}
@@ -556,7 +658,6 @@ mcmc_subset_sigma <- get_values(lognorm_rand_student_t_mcmc_rep,subset_pred_sigm
 sigma_b0_mean <- mean(mcmc_subset_sigma)
 b0_mean <- apply(mcmc_subset,2,mean)
 normalized_b0 <- b0_mean/sigma_b0_mean
-TQQPlot(normalized_b0,4)
 qqplot(qt(ppoints(20),4),normalized_b0)
 qqline(normalized_b0,distribution = function(x) qt(x,4), probs = c(0.05,0.95))
 
@@ -567,12 +668,12 @@ hist(mcmc_subset)
 hist(apply(mcmc_subset,2,mean),breaks = 15)
 #Mean variance of an estimaed random Effect
 mean(apply(mcmc_subset,2,var))
-library("Dowd")
 
 ```
 
 
 ```{r}
+
 #Non of the tests has crazy results
 mean(get_values(lognorm_rand_student_t_mcmc_rep,"tmax.test"))
 mean(get_values(lognorm_rand_student_t_mcmc_rep,"tmin.test"))
@@ -609,7 +710,7 @@ dic7
 ```
 
 
-### Weibull
+  ### Weibull
 
 ```{r  echo=F}
 source("Bayes1_Weibull_Random_jags.R")
@@ -671,6 +772,8 @@ matrix(order(ippo,decreasing = T),ncol = 14, nrow = 10, byrow = T)
 
 LPLM <- mean(log(cpo))
 LPLM
+#Again some pseudo bayes factor
+exp(-2.164256--2.237081)
 ```
 
 ##### PPC and more summary
@@ -882,34 +985,98 @@ subset_pred <- grepl("res\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
 #how look the average residuals in the log world?
 hist(apply(mcmc_subset,2,mean), breaks = 20)
-
+#pseudo bayes faktor hard coded ^^
+exp(-2.504187--2.507666)
 ```
 
 ##### PPC and more summary
- 
+```{r}
+ subset_pred <- grepl("y_rep\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+mcmc_subset <- get_values(lognorm_cens_rep_mcmc,subset_pred)
+
+# # mcmc_subset
+# #how often are the values bigger or smallen than the predicted ones
+# max(apply(apply(mcmc_subset,1,function(x){x > Grub$value}),2,mean))
+# 
+# #how do the distribution look like comapred to the origninal one
+# summary(mcmc_subset[,1])
+# hist(Grub$value)
+# hist(mcmc_subset[1,],breaks = 20)
+
+# how extreme are the predicted values compared to the original ones
+#this is basically generated y values with the same distribution as the true y values  
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
+```
+
+##### Plot the Model
 ```{r}
 
+Grub2 <- read.csv("..\\data\\Grubs_Easy_normalized_size.csv")
+Grub2$number <- 1:nrow(Grub)
+Grub2 <- Grub2 %>% arrange(upperlim)
 
-#"a" is the same as defined for Dic is pretty close in terms of ccalculation
+a <- vector()
+subset_pred <- grepl("beta0", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["beta0"] <- median(get_values(lognorm_cens_rep_mcmc,subset_pred))
 
-library(ggplot2)
-#Estimation of the regression means but there could be otber ways to get this done first calculate in any itteration then mean
-# not the same since size effect is not linear on value
+subset_pred <- grepl("beta2", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["beta2"] <- median(get_values(lognorm_cens_rep_mcmc,subset_pred))
 
-#group 1
-size <- seq(-2,4,by = 0.1)
-est_live_gr1 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["sigma"]))
-#group 2 beta 2 is the group
-est_live_gr2 <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["sigma"]))
+subset_pred <- grepl("beta1", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["beta1"] <- median(get_values(lognorm_cens_rep_mcmc,subset_pred))
+
+subset_pred <- grepl("tau", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
+a["tau"] <- median(get_values(lognorm_cens_rep_mcmc,subset_pred))
+
 
 subset_pred <- grepl("y\\[", dimnames(lognorm_cens_rep_mcmc[[1]])[[2]])
 mcmc_subset_y <- get_values(lognorm_cens_rep_mcmc,subset_pred)
-predicted_df <- data.frame(size = size, live1 = est_live_gr1,live2 = est_live_gr2)
-
-ggplot(Grub, aes(y = mcmc_subset_y[10,], x = grubsize, colour = as.factor(group))) + geom_point()+geom_line(color='black',data = predicted_df, aes(x=size, y=live1)) +
-  geom_line(color='gray',data = predicted_df, aes(x=size, y=live2))
+y_sample <- apply(mcmc_subset_y,2,mean)
 
 
+#group 2 beta 2 is the group
+gr1_low <- qlnorm(0.025,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["tau"]))
+gr1_mid <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["tau"]))
+gr1_up <- qlnorm(0.975,a["beta0"]+a["beta1"]*size + a["beta2"]*0,sqrt(1/a["tau"]))
+gr2_low <- qlnorm(0.025,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["tau"]))
+gr2_mid <- qlnorm(0.5,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["tau"]))
+gr2_up <- qlnorm(0.975,a["beta0"]+a["beta1"]*size + a["beta2"]*1,sqrt(1/a["tau"]))
+size <- seq(-2,4,length.out = 140)
+# 
+
+
+# Grub$grubsize, Grub$value
+# Grub2$grubsize, y_sample
+plot(Grub2$grubsize, y_sample,  pch = 19,ylim = c(0,20), col = (Grub2$group + 2), lwd = 1.5,
+      xlab = "Days", cex.lab = 1.8,
+     ylab = "Overall survival probability")
+lines(size,gr1_low, col = 2,lty = 2, lwd = 3)
+lines(size,gr1_mid, col = 2, lwd = 3)
+lines(size,gr1_up, col = 2,lty = 2, lwd = 3)
+lines(size,gr2_low, col = 3,lty = 2, lwd = 3)
+lines(size,gr2_mid, col = 3, lwd = 3)
+lines(size,gr2_up, col = 3, lwd = 3,lty = 2)
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3),
+               title = "Groups")
+
+
+pdf("..\\graphics\\Plot4.pdf", width = 7, height = 5)
+plot(Grub2$grubsize, y_sample,  pch = 19,ylim = c(0,20), col = (Grub2$group + 2), lwd = 1.5,
+      xlab = "Days", cex.lab = 1.4,
+     ylab = "Overall survival probability")
+lines(size,gr1_low, col = 2,lty = 2, lwd = 3)
+lines(size,gr1_mid, col = 2, lwd = 3)
+lines(size,gr1_up, col = 2,lty = 2, lwd = 3)
+lines(size,gr2_low, col = 3,lty = 2, lwd = 3)
+lines(size,gr2_mid, col = 3, lwd = 3)
+lines(size,gr2_up, col = 3, lwd = 3,lty = 2)
+legend("topright", legend = c("SS", "HB"),lwd = 3,
+               lty = 1,col = c(2,3),
+               title = "Groups")
+dev.off()
 ```
 ### Weibull
 
@@ -1028,15 +1195,15 @@ mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
 mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
 mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
 
-# how extreme is the CPO compared to the original one
-# cpo in the repeated case is much smaller than in the former case
-subset_pred <- grepl("ppo_rep\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
-mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
-biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
-plot(biggest_rep)
-order(biggest_rep,decreasing = T)
-sort(biggest_rep, decreasing = T)[1:3]
-Grub$id[c(106,43,131)]
+# # how extreme is the CPO compared to the original one
+# # cpo in the repeated case is much smaller than in the former case
+# subset_pred <- grepl("ppo_rep\\[", dimnames(weibull_cens_rep_mcmc[[1]])[[2]])
+# mcmc_subset <- get_values(weibull_cens_rep_mcmc,subset_pred)
+# biggest_rep <- abs(1/apply(as.matrix(mcmc_subset),2,mean))
+# plot(biggest_rep)
+# order(biggest_rep,decreasing = T)
+# sort(biggest_rep, decreasing = T)[1:3]
+# Grub$id[c(106,43,131)]
 
 
 
@@ -1338,8 +1505,8 @@ c(pv, md,pv+md)
 # qweibull(0.4,1,2*1.02)/1.02
 
 #Weibull Case
-#if we have group 2 instead of group 1, we have have an increase of quantile survival time by ((exp(beta2)-1)*100)% (survival time changes by a factor of exp(beta2))
-((exp(a1["beta2"])-1)*100)
+#if we have group 2 instead of group 1, we have have an increase of quantile survival time by ((exp(beta2)-1)*100)% (survival time changes by a factor of exp(beta2) beta2 symbolizes the group)
+#((exp(a1["beta2"])-1)*100)
 #in this case the expected survival time shrinks for 27%
 
 #Lognormal Case
@@ -1369,6 +1536,8 @@ Grub2$number[order(icpo,decreasing = T)][1:7]
 Grub2$number[order(ippo,decreasing = T)][1:7]
 
 LPLM <- mean(log(cpo))
+LPLM
+exp(-2.769448 + 2.442157)
 ```
 
 ##### PPC and more summary without random intercept
@@ -1409,6 +1578,18 @@ mean(get_values(weibull_cens_rand_mcmc_rep,"tmax.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"tmin.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"ks.test"))
 mean(get_values(weibull_cens_rand_mcmc_rep,"ss.test"))
+
+
+# how extreme are the predicted values compared to the original ones
+subset_pred <- grepl("y_rep\\[", dimnames(weibull_cens_rand_mcmc_rep[[1]])[[2]])
+mcmc_subset <- get_values(weibull_cens_rand_mcmc_rep,subset_pred)
+
+# p values not interpretable since not all observation even "have the abbility" to be so extreme, so it is even more
+# frightening to find so big differences. This is probably not the best use of PPC in the case that every observations, basically has a different distribution 
+
+mean(apply(mcmc_subset,1,function(x){sum(x >= 12)  >= (sum(Grub$value >=12))}))
+mean(apply(mcmc_subset,1,function(x){sum(x >= 6)  >= (sum(Grub$value >=6))}))
+mean(apply(mcmc_subset,1,function(x){sum(x <= 2)  >= (sum(Grub$value <= 2))}))
 ```
 #### Outlier stuff
 105, 91, 126 are especially high in average
@@ -1427,3 +1608,4 @@ All that have survived in the second group the 12 days, shoud not have happend, 
 Grub2[(Grub2$group == 1) ,]
 
 ```
+

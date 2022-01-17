@@ -38,7 +38,7 @@ model.function <- "model{
     h[i] <- beta0 + beta1 *x1[i] + beta2 *x2[i] + b0[id[i]]
   }
   #priors
-  tau_b0 <- 1/sigma_b0
+  tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   # similar to dgamma(1,0.0001) bzw. dgamma(1,10000) if interpreted as we would get it from the exponential 
   k ~ dunif(0,100)

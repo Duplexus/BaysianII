@@ -24,7 +24,7 @@ model.inits <- list(list(tau=2,sigma2_b0 = 2, beta0=1, beta1 = 1,beta2 = 1,b0 = 
 # model.inits <-list(list(tau=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))),
 #                     list(tau=2, beta0=1, beta1 = 1,beta2 = 1, b0 = c(rep(1,times = 20))))
 
-parameters = c("sigma", "sigma2_b0","beta2", "beta0", "beta1", "b0")
+parameters = c("sigma2", "sigma2_b0","beta2", "beta0", "beta1", "b0")
 
 model.data <- list(y = Grub$value2, z = Grub$state, N1 = length_Upper,N2 = lenngth_NA_Upper,
                    x1 = Grub$grubsize, x2 = Grub$group, id = Grub$id,
@@ -45,7 +45,7 @@ model.function <- "model{
   }
   #priors
   tau ~ dgamma(0.001, 0.001)
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
@@ -65,9 +65,9 @@ lognorm_rand_cens <- run.jags(model = model.function,
                     sample = 5000, thin = 1, n.chains = 3)
 lognorm_rand_cens_mcmc <- as.mcmc.list(lognorm_rand_cens)
 
-parameters = c("sigma", "beta2", "beta0", "beta1", "b0","predict","b0.rep",
+parameters = c("sigma2", "beta2", "beta0", "beta1", "b0","predict","b0.rep",
                "ppo","tmin.test","tmax.test","ks.test", "tau","ss.test",
-               "y_rep", "ppo_rep","y","Deviance","tau","sigma2_b0")
+               "y_rep", "ppo_rep","y","Deviance","tau")
 model.function <- "model{
    for (i in 1:N1){
     z[i] ~ dinterval(y[i], lims[i,])
@@ -88,15 +88,15 @@ model.function <- "model{
   Deviance <- sum(D[])
   #priors
   tau ~ dgamma(0.001, 0.001)
-  sigma <- sqrt(1/tau)
+  sigma2 <- (1/tau)
   tau_b0 <- 1/sigma2_b0
   sigma2_b0 ~ dunif(0,100)
   beta0 ~ dnorm(0,1e-06)
   beta1 ~ dnorm(0,1e-06)
   beta2 ~ dnorm(0,1e-06)
   for (i in 1:N){
-    ppo[i] <- dlnorm(y[i],mu[i],sigma)
-    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],sigma)
+    ppo[i] <- dlnorm(y[i],mu[i],sigma2)
+    ppo_rep[i] <- dlnorm(y_rep[i],mu[i],sigma2)
   }
   for ( i in 1:Nsubj){
     b0[i] ~  dnorm(0,tau_b0)
